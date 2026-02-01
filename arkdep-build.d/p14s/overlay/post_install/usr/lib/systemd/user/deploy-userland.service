@@ -1,0 +1,18 @@
+[Unit]
+Description=Userland provisioning
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/deploy-userland
+ExecStartPre=/usr/bin/sleep 1
+# Prioritat de CPU mínima (19 és la més baixa)
+Nice=19
+# Només utilitza la CPU si ningú més la necessita
+CPUSchedulingPolicy=idle
+# Prioritat d'entrada/sortida de disc mínima
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

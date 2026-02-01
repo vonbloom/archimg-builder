@@ -1,0 +1,11 @@
+[Unit]
+Description=Canvia el fons de pantalla aleatòriament
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+# Busquem una imatge aleatòria i la passem a swaymsg
+ExecStart=/bin/bash -c 'IMG=$(find %h/.local/share/wallpapers -type f | shuf -n 1); swaymsg "output * bg $IMG fill"'
+
+[Install]
+WantedBy=sway-session.target

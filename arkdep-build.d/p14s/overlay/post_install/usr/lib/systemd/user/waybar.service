@@ -1,0 +1,18 @@
+[Unit]
+Description=Waybar status bar
+# S'assegura que la barra es tanqui si la sessió gràfica s'atura
+PartOf=sway-session.target
+# Espera que el nostre bootstrap hagi declarat que Sway està llest
+After=sway-session.target
+Requisite=sway-session.target
+
+[Service]
+# Executa el binari de Waybar
+ExecStart=/usr/bin/waybar
+# Si la barra peta (per un canvi de config o error), systemd la reiniciarà sola
+Restart=on-failure
+RestartSec=2
+
+[Install]
+# Aquest servei s'activarà quan el target de Sway estigui actiu
+WantedBy=sway-session.target

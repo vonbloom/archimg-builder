@@ -1,0 +1,13 @@
+enable sway-session.target
+enable waybar.service
+enable swayidle.service
+enable pickwall.service
+enable pickwall.timer
+enable wlsunset.service
+enable pipewire.service
+enable pipewire-pulse.service
+enable wireplumber.service
+enable xdg-desktop-portal.service
+enable xdg-desktop-portal-wlr.service
+enable podman.socket
+enable deploy-userland.service

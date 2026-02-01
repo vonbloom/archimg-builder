@@ -1,0 +1,13 @@
+[Unit]
+Description=Ajust automàtic de la temperatura de color (wlsunset)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/wlsunset -l 41.60 -L 2.35 -t 4000 -t 6500
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=sway-session.target

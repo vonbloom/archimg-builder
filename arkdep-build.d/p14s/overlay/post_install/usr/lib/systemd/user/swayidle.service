@@ -1,0 +1,22 @@
+[Unit]
+Description=Gestor d'inactivitat per a Sway (swayidle)
+# S'assegura que el servei s'aturi quan la sessió de Sway finalitzi
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# -w espera que el procés de bloqueig acabi abans de continuar (important per a la suspensió)
+# timeout 600: Bloqueja la pantalla als 10 minuts (600 segons)
+# before-sleep: Bloqueja la pantalla si suspens el sistema manualment (p. ex. tancant la tapa del portàtil)
+ExecStart=/usr/bin/swayidle -w \
+    timeout 600 'swaylock -f -c 000000' \
+    before-sleep 'swaylock -f -c 000000'
+
+# Reinicia el servei automàticament si peta
+Restart=always
+RestartSec=1
+
+[Install]
+# S'activa automàticament quan s'arrenca el teu sway-session.target
+WantedBy=sway-session.target

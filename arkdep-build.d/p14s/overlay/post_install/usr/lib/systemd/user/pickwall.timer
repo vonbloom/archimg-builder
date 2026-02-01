@@ -1,0 +1,14 @@
+[Unit]
+Description=Executa el canvi de fons cada 5 minuts
+# Això vincula el timer a la sessió de Sway
+PartOf=sway-session.target
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+# S'assegura que el timer no s'activi si Sway no està corrent
+Persistent=false
+
+[Install]
+# L'instal·lem directament a la sessió de Sway
+WantedBy=sway-session.target

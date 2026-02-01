@@ -1,0 +1,7 @@
+base
+linux-cachyos
+linux-firmware
+arkane-keyring
+dracut
+btrfs-progs
+zlib-ng-compat

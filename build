@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+[[ ! -d target ]] && mkdir -p target
+docker run \
+    --privileged --rm \
+    -v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d \
+    -v "$(pwd)"/target:/root/target \
+    arkdep-builder p14s

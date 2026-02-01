@@ -1,0 +1,23 @@
+#!/bin/sh
+REPO="vonbloom/dotfiles.git"
+REPO_URL="https://github.com/$REPO"
+DOT_DIR="$HOME/.dotfiles"
+DISTROBOX_CONFIG="$HOME/.config/distrobox/default.ini"
+
+if test ! -d "$DOT_DIR"; then
+    echo "Cloning dotfiles..."
+    git clone "$REPO_URL" "$DOT_DIR"
+    cd "$DOT_DIR" || exit 1
+    git remote set-url origin git@github.com:"$REPO"
+    [ -f install ] && ./install
+fi
+
+if test -f "$DISTROBOX_CONFIG"; then
+    echo "Deploying Distroboxes..."
+    distrobox assemble create --file "$DISTROBOX_CONFIG" || true
+    distrobox enter -- true
+fi
+
+if command -v notify-send >/dev/null; then
+    notify-send -t 3000 -i distropix "Sistema a punt" "Dotfiles i contenidors Distrobox configurats correctament."
+fi
