@@ -1,16 +1,14 @@
-# Els teus serveis d'aplicació
 enable apparmor.service
 enable iwd.service
 enable systemd-networkd.service
 enable systemd-resolved.service
 enable tlp.service
-
-# Serveis base del sistema (Mínims vitals)
 enable getty@.service
 enable systemd-logind.service
 enable systemd-timesyncd.service
 enable systemd-userdbd.socket
 enable remote-fs.target
+enable iptables.service
+enable sshd.socket
 
-# Bloqueig de tota la resta
 disable *

@@ -1,0 +1,42 @@
+#!/usr/bin/bash
+
+[[ $EUID -ne 0 ]] && echo "Error: Run as root." && exit 1
+
+RULES="/etc/iptables/iptables.rules"
+
+save() {
+    echo "Saving to $RULES..."
+    iptables-save -f "$RULES"
+}
+
+case "$1" in
+init)
+    echo "Initializing..."
+    iptables -F && iptables -X
+    iptables -P INPUT DROP
+    iptables -P FORWARD DROP
+    iptables -P OUTPUT ACCEPT
+    iptables -A INPUT -i lo -j ACCEPT
+    iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    iptables -A INPUT -p icmp -j ACCEPT
+    save
+    ;;
+allow)
+    [[ -z "$2" ]] && echo "Usage: fw allow <port> [tcp|udp]" && exit 1
+    PROTO=${3:-tcp}
+    PROTO=${PROTO,,}
+    iptables -C INPUT -p "$PROTO" --dport "$2" -j ACCEPT 2>/dev/null || {
+        iptables -A INPUT -p "$PROTO" --dport "$2" -j ACCEPT && save
+    }
+    ;;
+deny)
+    [[ -z "$2" ]] && echo "Usage: fw deny <port> [tcp|udp]" && exit 1
+    PROTO=${3:-tcp}
+    PROTO=${PROTO,,}
+    iptables -D INPUT -p "$PROTO" --dport "$2" -j ACCEPT 2>/dev/null && save
+    ;;
+*)
+    echo "Usage: $0 {init|allow|deny} <port> [tcp|udp]"
+    exit 1
+    ;;
+esac
