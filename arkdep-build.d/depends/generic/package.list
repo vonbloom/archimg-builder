@@ -35,6 +35,7 @@ tree
 udisks2
 wget
 xfsprogs
+xdg-user-dirs
 zram-generator
 zsh
 zsh-completions
