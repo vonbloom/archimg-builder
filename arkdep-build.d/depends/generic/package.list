@@ -13,6 +13,7 @@ fwupd
 fzf
 git
 glibc-locales
+iptables-nft
 iwd
 libnotify
 libnss-extrausers
