@@ -41,9 +41,10 @@ zsh-completions
 
 # Virtualization
 qemu-base
-qemu-hw-display-virtio
 qemu-hw-display-qxl
-qemu-hw-virtiofsd
+qemu-hw-display-virtio-vga
+qemu-hw-display-virtio-gpu
 libvirt
 edk2-ovmf
 dnsmasq
+virtiofsd
