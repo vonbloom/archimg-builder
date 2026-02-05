@@ -10,5 +10,7 @@ enable systemd-userdbd.socket
 enable remote-fs.target
 enable iptables.service
 enable sshd.socket
+enable libvirt.socket
+enable virtlogd.socket
 
 disable *
