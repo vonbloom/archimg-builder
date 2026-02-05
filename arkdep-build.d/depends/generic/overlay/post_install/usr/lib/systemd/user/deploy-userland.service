@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/deploy-userland
+ExecStart=/usr/local/bin/deploy-userland
 ExecStartPre=/usr/bin/sleep 1
 # Prioritat de CPU mínima (19 és la més baixa)
 Nice=19
