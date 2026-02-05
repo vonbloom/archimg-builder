@@ -25,7 +25,6 @@ plymouth
 podman
 podman-compose
 pv
-qemu-guest-agent
 sof-firmware
 sudo
 stow
@@ -39,3 +38,12 @@ xdg-user-dirs
 zram-generator
 zsh
 zsh-completions
+
+# Virtualization
+qemu-base
+qemu-hw-display-virtio
+qemu-hw-display-qxl
+qemu-hw-virtiofsd
+libvirt
+edk2-ovmf
+dnsmasq
