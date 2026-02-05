@@ -32,8 +32,12 @@ panic)
     iptables -A INPUT -i lo -j ACCEPT
     iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     ;;
+reload)
+    echo "Reloading base configuration..."
+    iptables-restore <"$RULES" && echo "Done."
+    ;;
 *)
-    echo "Usage: $0 {allow|deny|panic} <port> [tcp|udp]"
+    echo "Usage: $0 {allow|deny|panic|reload} <port> [tcp|udp]"
     exit 1
     ;;
 esac
