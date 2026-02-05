@@ -24,8 +24,16 @@ deny)
     PROTO=${PROTO,,}
     iptables -D INPUT -p "$PROTO" --dport "$2" -j ACCEPT 2>/dev/null && save
     ;;
+panic)
+    echo "EMERGENCY: Closing all incoming ports..."
+    echo "Note: These changes are NOT saved and will be lost on reboot."
+    iptables -P INPUT DROP
+    iptables -F INPUT
+    iptables -A INPUT -i lo -j ACCEPT
+    iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    ;;
 *)
-    echo "Usage: $0 {init|allow|deny} <port> [tcp|udp]"
+    echo "Usage: $0 {allow|deny|panic} <port> [tcp|udp]"
     exit 1
     ;;
 esac
