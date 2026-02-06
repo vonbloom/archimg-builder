@@ -44,6 +44,8 @@ qemu-base
 qemu-hw-display-qxl
 qemu-hw-display-virtio-vga
 qemu-hw-display-virtio-gpu
+qemu-ui-spice-app
+qemu-audio-spice
 libvirt
 edk2-ovmf
 dnsmasq

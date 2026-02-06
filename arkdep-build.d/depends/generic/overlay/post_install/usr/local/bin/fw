@@ -1,43 +1,51 @@
-#!/usr/bin/bash
+#!/bin/bash
 
+# Check for root
 [[ $EUID -ne 0 ]] && echo "Error: Run as root." && exit 1
 
-RULES="/etc/iptables/iptables.rules"
-
-save() {
-    echo "Saving to $RULES..."
-    iptables-save -f "$RULES"
-}
+CONF="/etc/nftables.conf"
+PROTO=${3:-tcp} # Default to tcp if not specified
 
 case "$1" in
-allow)
-    [[ -z "$2" ]] && echo "Usage: fw allow <port> [tcp|udp]" && exit 1
-    PROTO=${3:-tcp}
-    PROTO=${PROTO,,}
-    iptables -C INPUT -p "$PROTO" --dport "$2" -j ACCEPT 2>/dev/null || {
-        iptables -I INPUT -p "$PROTO" --dport "$2" -j ACCEPT && save
-    }
-    ;;
-deny)
-    [[ -z "$2" ]] && echo "Usage: fw deny <port> [tcp|udp]" && exit 1
-    PROTO=${3:-tcp}
-    PROTO=${PROTO,,}
-    iptables -D INPUT -p "$PROTO" --dport "$2" -j ACCEPT 2>/dev/null && save
-    ;;
-panic)
-    echo "EMERGENCY: Closing all incoming ports..."
-    echo "Note: These changes are NOT saved and will be lost on reboot."
-    iptables -P INPUT DROP
-    iptables -F INPUT
-    iptables -A INPUT -i lo -j ACCEPT
-    iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-    ;;
-reload)
-    echo "Reloading base configuration..."
-    iptables-restore <"$RULES" && echo "Done."
-    ;;
-*)
-    echo "Usage: $0 {allow|deny|panic|reload} <port> [tcp|udp]"
-    exit 1
-    ;;
+    allow)
+        # Open a port and save
+        nft add element inet filter allowed_${PROTO} { $2 }
+        nft list ruleset > "$CONF"
+        echo "Port $2 ($PROTO) opened."
+        ;;
+        
+    deny)
+        # Close a port and save
+        nft delete element inet filter allowed_${PROTO} { $2 } 2>/dev/null
+        nft list table inet filter > "$CONF"
+        echo "Port $2 ($PROTO) closed."
+        ;;
+        
+    panic)
+        # Close ALL open ports (Clear the lists)
+        echo "Closing all open ports..."
+        nft flush set inet filter allowed_tcp
+        nft flush set inet filter allowed_udp
+        nft list table inet filter > "$CONF"
+        echo "Done. System is isolated (default policies apply)."
+        ;;
+        
+    reload)
+        # Reload from config file
+        nft -f "$CONF" && echo "Rules reloaded from $CONF."
+        ;;
+        
+    list)
+        # Simple status check
+        echo "--- Open TCP ---"
+        nft list set inet filter allowed_tcp
+        echo "--- Open UDP ---"
+        nft list set inet filter allowed_udp
+        ;;
+        
+    *)
+        echo "Usage: $0 {allow|deny} <port> [tcp|udp]"
+        echo "       $0 {panic|reload|list}"
+        exit 1
+        ;;
 esac
