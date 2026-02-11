@@ -1,1 +1,1 @@
-echo "archlinux-$(date +%Y-%m-%d)"
+echo "p14s-$(date +%Y-%m-%d)"
