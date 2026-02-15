@@ -1,7 +1,37 @@
 #!/usr/bin/env bash
-[[ ! -d target ]] && mkdir -p target
-docker run \
+
+[[ -z $1 ]] && echo "A recipe must be specified" && exit 1
+
+recipe=$1
+repo_path=/mnt/repo
+NGINX_CONTAINER=arkdep-repo
+
+! sudo podman inspect arkdep-builder >/dev/null 2>&1 && sudo podman build -t arkdep-builder .
+
+[[ ! -d "$repo_path/$recipe" ]] && mkdir -p "$repo_path/$recipe"
+
+echo "Building $recipe..."
+sudo podman run \
     --privileged --rm \
-    -v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d \
-    -v "$(pwd)"/target:/root/target \
-    arkdep-builder p14s
+    -v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
+    -v "$repo_path/$recipe":/root/target:Z \
+    arkdep-builder "$recipe"
+
+# Delete folder not needed
+echo "Deleting folders not needed..."
+find "$repo_path/$recipe" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+
+if ! podman inspect "$NGINX_CONTAINER" >/dev/null 2>&1; then
+        echo "First run: Creating $NGINX_CONTAINER container..."
+	podman run -d \
+  		--name "$NGINX_CONTAINER" \
+  		-p 8080:80 \
+  		-v ./nginx.conf:/etc/nginx/conf.d/default.conf:Z \
+  		-v /mnt/repo:/usr/share/nginx/html:Z \
+  		docker.io/library/nginx:alpine
+elif [[ $(podman inspect -f '{{.State.Running}}' "$NGINX_CONTAINER") == "false" ]]; then
+	echo "$NGINX_CONTAINER was stopped. Starting it..."
+        podman start "$NGINX_CONTAINER"
+else
+        echo "$NGINX_CONTAINER is already running."
+fi

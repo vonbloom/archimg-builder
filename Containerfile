@@ -1,6 +1,7 @@
-FROM archlinux:latest
+# --- Builder
+FROM archlinux:latest AS builder
 
-RUN pacman -Syu --noconfirm base-devel git
+RUN pacman -Syu --noconfirm --needed base-devel git
 
 RUN useradd -m builder && \
     echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -8,25 +9,26 @@ RUN useradd -m builder && \
 USER builder
 WORKDIR /home/builder
 
-RUN git clone https://github.com/arkanelinux/pkgbuild.git && \
+RUN git clone --depth 1 https://github.com/arkanelinux/pkgbuild.git && \
     cd pkgbuild/arkane-keyring && \
-    makepkg -sic --noconfirm && \
+    makepkg -sc --noconfirm && \
     cd ../arkdep && \
-    makepkg -sic --noconfirm
+    makepkg -sc --noconfirm
 
-USER root
+# --- Runtime
+FROM archlinux:latest
+
+COPY --from=builder /home/builder/pkgbuild/arkane-keyring/*.pkg.tar.zst /tmp/
+COPY --from=builder /home/builder/pkgbuild/arkdep/*.pkg.tar.zst /tmp/
+
+RUN pacman -Syu --noconfirm && \
+    pacman -U --noconfirm /tmp/*.pkg.tar.zst && \
+    pacman-key --init && \
+    pacman-key --populate archlinux arkane && \
+    rm -rf /tmp/* && \
+    pacman -Scc --noconfirm
+
 WORKDIR /root
-
-# Crea el node del dispositiu loop0 si no existeix
-RUN [ -e /dev/loop0 ] || mknod /dev/loop0 b 7 0
-
-# Inicialitza el directori de claus de pacman
-RUN pacman-key --init
-
-# Omple el keyring amb les claus oficials d'Arch Linux
-RUN pacman-key --populate archlinux arkane
-
 RUN mkdir arkdep-build.d
 
-ENTRYPOINT ["arkdep-build"] 
-
+ENTRYPOINT ["arkdep-build"]
