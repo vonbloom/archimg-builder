@@ -4,5 +4,6 @@ linux-cachyos
 linux-firmware
 arkane-keyring
 dracut
+cpio
 btrfs-progs
 zlib-ng-compat
