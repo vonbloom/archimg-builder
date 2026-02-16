@@ -20,6 +20,7 @@ FROM archlinux:latest
 
 COPY --from=builder /home/builder/pkgbuild/arkane-keyring/*.pkg.tar.zst /tmp/
 COPY --from=builder /home/builder/pkgbuild/arkdep/*.pkg.tar.zst /tmp/
+COPY ./arkdep-build.sh /usr/bin/
 
 RUN pacman -Syu --noconfirm && \
     pacman -U --noconfirm /tmp/*.pkg.tar.zst && \
@@ -31,4 +32,4 @@ RUN pacman -Syu --noconfirm && \
 WORKDIR /root
 RUN mkdir arkdep-build.d
 
-ENTRYPOINT ["arkdep-build"]
+ENTRYPOINT ["/usr/bin/arkdep-build.sh"]

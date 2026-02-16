@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+ln -sf /home/admin/archimg-builder/arkdep-repo.container /etc/containers/systemd/
+systemctl daemon-reload
+systemctl start arkdep-repo.service
