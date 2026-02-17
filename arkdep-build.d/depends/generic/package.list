@@ -3,6 +3,7 @@ arch-install-scripts
 archiso
 arkdep
 binutils
+brightnessctl
 diffutils
 distrobox
 efibootmgr

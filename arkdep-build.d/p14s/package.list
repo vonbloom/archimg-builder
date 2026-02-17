@@ -1,6 +1,6 @@
 foot
 libva-mesa-driver
-mesa
+mesa-git
 pipewire
 pipewire-pulse
 wireplumber
