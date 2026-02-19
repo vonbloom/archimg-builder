@@ -10,6 +10,7 @@ efibootmgr
 exfatprogs
 f2fs-tools
 fakeroot
+fastfetch
 fwupd
 fzf
 git
@@ -18,7 +19,6 @@ iwd
 libnotify
 libnss-extrausers
 man-db
-neovim
 openssh
 pacman-contrib
 pass
@@ -33,6 +33,7 @@ tlp
 tmux
 tree
 udisks2
+vi
 wget
 xfsprogs
 xdg-user-dirs
