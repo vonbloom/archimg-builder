@@ -1,3 +1,4 @@
+# Services
 enable apparmor.service
 enable iwd.service
 enable systemd-networkd.service
@@ -6,11 +7,16 @@ enable tlp.service
 enable getty@.service
 enable systemd-logind.service
 enable systemd-timesyncd.service
-enable systemd-userdbd.socket
 enable remote-fs.target
 enable nftables.service
+
+# Sockets
+enable systemd-userdbd.socket
 enable sshd.socket
 enable libvirtd.socket
 enable virtlogd.socket
+
+# Timers
+enable btrbk.timer
 
 disable *

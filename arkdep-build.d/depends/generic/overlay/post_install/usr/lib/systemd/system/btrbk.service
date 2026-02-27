@@ -1,0 +1,9 @@
+[Unit]
+Description=Btrbk snapshot service
+Documentation=man:btrbk(1)
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/btrbk run
+ReadOnlyPaths=/usr
