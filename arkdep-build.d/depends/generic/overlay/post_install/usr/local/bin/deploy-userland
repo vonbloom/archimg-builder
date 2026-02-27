@@ -12,7 +12,7 @@ if test ! -d "$DOT_DIR"; then
     [ -f install ] && ./install
 fi
 
-xdg-users-dirs-update
+xdg-user-dirs-update
 
 if test -f "$DISTROBOX_CONFIG"; then
     echo "Deploying Distroboxes..."
