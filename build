@@ -10,10 +10,11 @@ BUILDER_IMAGE=arkdep-builder
 [[ ! -d $REPO_PATH ]] && mkdir "$REPO_PATH"
 
 # Build builder image if needed
-! sudo podman inspect "$BUILDER_IMAGE" >/dev/null 2>&1 && sudo podman build -t "$BUILDER_IMAGE" .
+! podman inspect "$BUILDER_IMAGE" >/dev/null 2>&1 &&
+	podman build --rm -t "$BUILDER_IMAGE" .
 
 # Build recipe image
-sudo podman run \
+podman run \
     --privileged --rm \
     -v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
     -v "$REPO_PATH":/root/target:Z \
