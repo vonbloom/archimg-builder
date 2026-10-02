@@ -18,7 +18,7 @@ git
 glibc-locales
 iwd
 libnotify
-libnss-extrausers
+nss-altfiles
 man-db
 openssh
 pacman-contrib
