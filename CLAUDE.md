@@ -8,7 +8,7 @@ in English (short, sentence-style subjects).
 
 - **Host OS**: arkdep deployments. Root is a read-only btrfs subvolume
   (`/arkdep/deployments/<image>/rootfs`), `/etc` and `/var` are separate subvolumes per deployment.
-  `deploy_keep=3`. Packages are not installed on the host at runtime: change a recipe and rebuild.
+  `deploy_keep=2`. Packages are not installed on the host at runtime: change a recipe and rebuild.
 - **Userland**: everything interactive (VS Code, Brave, neovim, compilers) lives in the `userland`
   distrobox (Arch). Defined in `~/.config/distrobox/default.ini`, from the dotfiles repo
   `vonbloom/dotfiles` (stow, `~/.dotfiles`). Provisioned at first login by
@@ -86,7 +86,8 @@ How `arkdep-build` processes a recipe (relevant constraints):
   several servers in `common/mirrorlist`.
 - **Migrated files keep numeric GIDs** (`cp -p`): e.g. `wg0.key` is `root:systemd-network` (977, a
   dynamic sysusers GID). If an image changes that GID, networkd cannot read the key.
-- **Journal**: `/var/log/journal` is per deployment and uncapped (several GiB each).
+- **Journal**: `/var/log/journal` is per deployment; capped with `SystemMaxUse=1G` in
+  `depends/generic/.../journald.conf.d/50-size.conf` (default would be 4 GiB each).
 
 ## Verifying changes without building
 
