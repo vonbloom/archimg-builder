@@ -35,6 +35,7 @@ tree
 udisks2
 vi
 wget
+wireless-regdb
 xfsprogs
 xdg-user-dirs
 zram-generator
