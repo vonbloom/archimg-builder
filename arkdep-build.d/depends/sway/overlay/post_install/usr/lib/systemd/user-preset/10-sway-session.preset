@@ -10,4 +10,6 @@ enable wireplumber.service
 enable xdg-desktop-portal.service
 enable xdg-desktop-portal-wlr.service
 enable podman.socket
+# Socket activated only: enabling the service too races with the socket at login
+disable podman.service
 enable deploy-userland.service
