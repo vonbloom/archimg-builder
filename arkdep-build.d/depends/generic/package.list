@@ -27,7 +27,6 @@ plymouth
 podman
 podman-compose
 pv
-sof-firmware
 sudo
 stow
 tlp

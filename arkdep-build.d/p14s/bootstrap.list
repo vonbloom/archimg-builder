@@ -1,2 +1,5 @@
 amd-ucode
 dbus-broker-units
+linux-firmware-amdgpu
+linux-firmware-intel
+linux-firmware-realtek

@@ -1,7 +1,6 @@
 base
 iptables-nft
 linux-cachyos
-linux-firmware
 arkane-keyring
 dracut
 cpio
