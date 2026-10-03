@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Usage: build [--rebuild-builder] <recipe>
+
+REBUILD=0
+[[ $1 == --rebuild-builder ]] && REBUILD=1 && shift
 
 [[ -z $1 ]] && echo "A recipe must be specified" && exit 1
 [[ $# -gt 1 ]] && echo "Only one argument allowed" && exit 1
@@ -6,12 +10,19 @@
 RECIPE="$1"
 REPO_PATH="/mnt/repo/$RECIPE"
 BUILDER_IMAGE=arkdep-builder
+BUILDER_MAX_AGE_DAYS=7
 
 [[ ! -d $REPO_PATH ]] && mkdir "$REPO_PATH"
 
-# Build builder image if needed
-! podman inspect "$BUILDER_IMAGE" >/dev/null 2>&1 &&
-	podman build --rm -t "$BUILDER_IMAGE" .
+# Rebuild the builder image if missing, too old or requested, so arkdep and pacman stay current
+CREATED=$(podman image inspect -f '{{.Created.Unix}}' "$BUILDER_IMAGE" 2>/dev/null)
+if [[ -z $CREATED ]] || ((REBUILD)) ||
+	(($(date +%s) - CREATED > BUILDER_MAX_AGE_DAYS * 86400)); then
+	podman build --pull=always --no-cache --rm -t "$BUILDER_IMAGE" . &&
+		podman image prune -f
+fi
+
+echo "Builder: $(podman run --rm --entrypoint pacman "$BUILDER_IMAGE" -Q arkdep)"
 
 # Build recipe image
 podman run \
