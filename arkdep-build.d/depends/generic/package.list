@@ -15,7 +15,6 @@ fastfetch
 fwupd
 fzf
 git
-glibc-locales
 iwd
 libnotify
 nss-altfiles
