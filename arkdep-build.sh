@@ -10,7 +10,7 @@ DB_PATH="$REPO_PATH/$DB_FILENAME"
 
 # Build recipe
 echo "Building $RECIPE..."
-/usr/bin/arkdep-build "$RECIPE"
+/usr/bin/arkdep-build "$RECIPE" || { echo "Build failed, repository left untouched"; exit 1; }
 
 # Delete folders not needed
 echo "Deleting folders not needed..."
