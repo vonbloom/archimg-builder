@@ -1,0 +1,24 @@
+FROM archlinux:latest
+# expect provides unbuffer, which aur-repo-filter needs without a terminal (systemd)
+
+RUN pacman -Syu --noconfirm --needed base-devel git pacman-contrib expect && \
+    pacman -Scc --noconfirm
+
+COPY ./makepkg.conf /etc/makepkg.conf.d/aur-builder.conf
+
+RUN useradd -m builder && \
+    echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+
+# aurutils itself comes from the AUR
+USER builder
+WORKDIR /home/builder
+RUN git clone --depth 1 https://aur.archlinux.org/aurutils.git && \
+    cd aurutils && \
+    makepkg -si --noconfirm && \
+    cd .. && rm -rf aurutils && \
+    sudo pacman -Scc --noconfirm
+
+USER root
+COPY ./aur-build.sh /usr/bin/
+
+ENTRYPOINT ["/usr/bin/aur-build.sh"]

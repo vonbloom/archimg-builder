@@ -1,0 +1,10 @@
+[Unit]
+Description=Build AUR packages and publish them in the aur repository
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/repo
+
+[Service]
+Type=oneshot
+ExecStart=/home/admin/aur-builder/build
+TimeoutStartSec=3h

@@ -1,0 +1,6 @@
+# AUR packages to build and publish in the [aur] repository, one per line.
+# AUR dependencies are pulled in automatically.
+visual-studio-code-bin
+ledger-live-bin
+auto-cpufreq
+devpod-cli-bin
