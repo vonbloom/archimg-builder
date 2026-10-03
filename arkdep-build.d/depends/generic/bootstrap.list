@@ -6,3 +6,4 @@ dracut
 cpio
 btrfs-progs
 zlib-ng-compat
+dbus-broker-units

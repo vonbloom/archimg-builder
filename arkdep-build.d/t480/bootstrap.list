@@ -1,4 +1,3 @@
-amd-ucode
-linux-firmware-amdgpu
+intel-ucode
 linux-firmware-intel
 linux-firmware-realtek
