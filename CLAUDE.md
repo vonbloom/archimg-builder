@@ -25,6 +25,14 @@ in English (short, sentence-style subjects).
 - Builds run on the server `192.168.2.50` (checkout at `/home/admin/archimg-builder`), not on the
   laptops: `./build <recipe>` builds the `arkdep-builder` podman image (when missing or older than 7 days, arkdep from
   `arkanelinux/pkgbuild`) and runs `arkdep-build.sh` inside it, writing to `/mnt/repo/<recipe>`.
+- Scheduled builds: `install` (as root) links `systemd/archimg-build@.{service,timer}` into
+  `/etc/systemd/system` and enables `archimg-build@<recipe>.timer` for p14s and t480 (Sunday 08:00
+  Europe/Madrid, `Persistent=true`). Builds run one at a time (`flock /run/archimg-build.lock`).
+  After a successful build, `prune <recipe>` thins out old images (keep the newest 4 plus the newest
+  of each of the 3 previous months; `prune --dry-run <recipe>` shows the plan) and `notify-image`
+  sends "New image ..." with the package changes to Home Assistant. A failed build triggers
+  `notify-failure@` (both `notify-ha` and that unit come from the homelab repo, role `notify_ha`).
+  Logs: `journalctl -u archimg-build@<recipe>`.
 - `serve` installs the `arkdep-repo.container` quadlet: nginx serves `/mnt/repo` at
   `http://192.168.2.50/<recipe>/` (`database` file + `<name>.tar.zst`).
 - An image `.tar.zst` contains btrfs send streams (`<name>-rootfs.img`, `-etc.img`, `-var.img`) and

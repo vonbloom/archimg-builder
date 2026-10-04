@@ -1,0 +1,16 @@
+[Unit]
+Description=Build the %i arkdep image and publish it
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/repo
+# notify-failure@ comes from the homelab repo (notify_ha role)
+OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/admin/archimg-builder
+# Builds of different recipes are started together by their timers: run them one at a time
+ExecStart=/usr/bin/flock /run/archimg-build.lock /home/admin/archimg-builder/build %i
+ExecStartPost=/home/admin/archimg-builder/prune %i
+ExecStartPost=/home/admin/archimg-builder/notify-image %i
+TimeoutStartSec=6h

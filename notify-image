@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Usage: notify-image <recipe>
+# Report the newest image of a recipe to Home Assistant (notify-ha, from the homelab repo), with
+# the package changes since the previous image. A package count that drops by more than 20 % is
+# reported as a warning: arkdep-build can silently skip the package stage (see CLAUDE.md).
+
+set -euo pipefail
+
+RECIPE=${1:?A recipe must be specified}
+REPO_PATH=/mnt/repo/$RECIPE
+
+mapfile -t lists < <(find "$REPO_PATH" -maxdepth 1 -name '*.pkgs' | sort -r | head -2)
+new=${lists[0]:?no image found}
+image=$(basename "$new" .pkgs)
+total=$(wc -l <"$new")
+kernel=$(awk '$1 ~ /^linux(-cachyos)?$/ { print $1, $2 }' "$new")
+message="$total packages, kernel ${kernel:-unknown}."
+status=info title="New image $image"
+
+if [[ -n ${lists[1]:-} ]]; then
+	old=${lists[1]}
+	read -r added removed updated < <(awk '
+		NR == FNR { old[$1] = $2; next }
+		{ new[$1] = $2 }
+		END {
+			for (p in new) if (!(p in old)) a++; else if (old[p] != new[p]) u++
+			for (p in old) if (!(p in new)) r++
+			print a + 0, r + 0, u + 0
+		}' "$old" "$new")
+	message+=" Since $(basename "$old" .pkgs): $updated updated, $added added, $removed removed."
+	if ((total * 5 < $(wc -l <"$old") * 4)); then
+		status=warning title="[WARNING] Image $image has far fewer packages than the previous one"
+	fi
+fi
+
+NOTIFY_STATUS=$status /usr/local/sbin/notify-ha "$title" "$message" "archimg-$RECIPE"

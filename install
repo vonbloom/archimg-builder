@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Install the weekly build units and enable a timer per recipe (run as root on the build server)
+# Usage: install [recipe...]   (default: p14s t480)
+
+cd "$(dirname "$(readlink -f "$0")")"
+
+RECIPES=("$@")
+[[ $# -eq 0 ]] && RECIPES=(p14s t480)
+
+ln -sf "$(pwd)"/systemd/archimg-build@.service "$(pwd)"/systemd/archimg-build@.timer /etc/systemd/system/
+systemctl daemon-reload
+for recipe in "${RECIPES[@]}"; do
+	systemctl enable --now "archimg-build@$recipe.timer"
+done
