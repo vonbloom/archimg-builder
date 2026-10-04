@@ -3,6 +3,8 @@ Description=Build AUR packages and publish them in the aur repository
 After=network-online.target remote-fs.target
 Wants=network-online.target
 RequiresMountsFor=/mnt/repo
+# notify-failure@ comes from the homelab repo (notify_ha role)
+OnFailure=notify-failure@%n.service
 
 [Service]
 Type=oneshot

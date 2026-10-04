@@ -9,7 +9,8 @@ subjects).
 
 - Server `192.168.2.50` (Debian, rootful podman via `sudo`), checkout `/home/admin/aur-builder`.
 - `install` links `systemd/aur-builder.{service,timer}` into `/etc/systemd/system` and enables the
-  timer (daily 04:00 + up to 30 min random delay, `Persistent=true`). Logs:
+  timer (daily 04:00 UTC + up to 30 min random delay, `Persistent=true`). A failed run triggers
+  `notify-failure@` (Home Assistant push; from the homelab repo, role `notify_ha`). Logs:
   `journalctl -u aur-builder`. Manual run: `sudo systemctl start aur-builder` or `sudo ./build`.
 - `build [--rebuild-builder] [repo_path]` rebuilds the `aur-builder` image when missing, older than 7
   days or requested, then runs `aur-build.sh` in it with `packages.list` and the repo
