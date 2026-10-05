@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><path fill='%231793d1' d='m127.98 12.07c-10.316 25.309-16.543 41.855-28.031 66.41 7.043 7.4609 15.691 16.156 29.734 25.977-15.098-6.207-25.395-12.445-33.094-18.918-14.703 30.68-37.742 74.391-84.492 158.39 36.746-21.219 65.23-34.293 91.773-39.289-1.1406-4.8945-1.7852-10.195-1.7422-15.734l0.042969-1.1719c0.58203-23.551 12.828-41.645 27.336-40.418 14.508 1.2266 25.781 21.316 25.199 44.867-0.10938 4.4219-0.60938 8.6914-1.4805 12.641 26.258 5.1328 54.438 18.18 90.684 39.105-7.1484-13.156-13.527-25.016-19.621-36.316-9.5938-7.4336-19.605-17.117-40.023-27.594 14.035 3.6406 24.082 7.8516 31.914 12.555-61.941-115.32-66.957-130.66-88.199-180.5z'/></svg>">
+<title>distro-builder</title>
+<!-- Status page of the build server. Data: /status/status.json and /status/logs/<unit>.txt,
+     written every minute by serve/status-gen. No dependencies, no build step. -->
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --fg: #1d2330; --muted: #667085; --line: #e3e6eb;
+  --accent: #2f6fdb; --ok: #1a7f37; --run: #b56a00; --fail: #c62828; --never: #7a8291;
+  --code: #f0f2f5; --add: #1a7f37; --rem: #c62828; --upd: #2f6fdb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --card: #1c2027; --fg: #e4e7ec; --muted: #98a2b3; --line: #2c323c;
+    --accent: #6ea8ff; --ok: #4cc26b; --run: #f0a43a; --fail: #ff6b6b; --never: #8b93a1;
+    --code: #11141a; --add: #4cc26b; --rem: #ff6b6b; --upd: #6ea8ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 18px; }
+header h1 { margin: 0; font-size: 24px; display: flex; align-items: center; gap: 12px; }
+header h1 .logo { width: 44px; height: 44px; flex: none; }
+header { align-items: center; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+h2 { font-size: 17px; margin: 28px 0 10px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.card h3 { margin: 0 0 6px; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
+.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; }
+.pill.ok { background: var(--ok); } .pill.running { background: var(--run); }
+.pill.failed { background: var(--fail); } .pill.never { background: var(--never); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+button { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line);
+  border-radius: 6px; padding: 3px 10px; cursor: pointer; margin-top: 10px; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { color: var(--muted); cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button { margin-top: 10px; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 4px; width: 220px; max-width: 100%; }
+.bar > div { height: 100%; background: var(--accent); }
+.table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.changes { cursor: pointer; }
+.changes .a { color: var(--add); } .changes .r { color: var(--rem); } .changes .u { color: var(--upd); }
+tr.detail td { white-space: normal; background: var(--code); }
+.detail ul { margin: 4px 0 8px; padding-left: 18px; columns: 2 320px; font-family: ui-monospace, monospace; font-size: 12.5px; }
+.detail h4 { margin: 6px 0 0; font-size: 13px; }
+code, .mono { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 12.5px; }
+.hash { word-break: break-all; }
+dialog { width: min(1100px, 96vw); height: min(85vh, 900px); padding: 0; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--card); color: var(--fg); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dlg { display: flex; flex-direction: column; height: 100%; }
+.dlg-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.dlg-head strong { flex: 1; } .dlg-head button { margin: 0; }
+#log { flex: 1; margin: 0; padding: 10px 14px; overflow: auto; background: var(--code);
+  font: 12px/1.4 ui-monospace, "JetBrains Mono", monospace; white-space: pre-wrap; word-break: break-word; }
+#error { color: var(--fail); }
+footer { margin-top: 32px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><svg class="logo" viewBox="0 0 256 256" aria-hidden="true"><path fill="#1793d1" fill-rule="evenodd" d="m127.98 12.07c-10.316 25.309-16.543 41.855-28.031 66.41 7.043 7.4609 15.691 16.156 29.734 25.977-15.098-6.207-25.395-12.445-33.094-18.918-14.703 30.68-37.742 74.391-84.492 158.39 36.746-21.219 65.23-34.293 91.773-39.289-1.1406-4.8945-1.7852-10.195-1.7422-15.734l0.042969-1.1719c0.58203-23.551 12.828-41.645 27.336-40.418 14.508 1.2266 25.781 21.316 25.199 44.867-0.10938 4.4219-0.60938 8.6914-1.4805 12.641 26.258 5.1328 54.438 18.18 90.684 39.105-7.1484-13.156-13.527-25.016-19.621-36.316-9.5938-7.4336-19.605-17.117-40.023-27.594 14.035 3.6406 24.082 7.8516 31.914 12.555-61.941-115.32-66.957-130.66-88.199-180.5z"/></svg>distro-builder</h1>
+    <span class="muted small" id="meta">carregant…</span>
+    <span class="small" id="error"></span>
+  </header>
+
+  <section>
+    <h2>Builds</h2>
+    <div class="grid" id="units"></div>
+  </section>
+
+  <section id="images"></section>
+
+  <section>
+    <h2>Instal·lador</h2>
+    <div id="iso"></div>
+  </section>
+
+  <section>
+    <h2>Repositori <code>[aur]</code></h2>
+    <p class="muted small" id="aur-meta"></p>
+    <div class="table-wrap"><table id="aur"></table></div>
+  </section>
+
+  <footer class="muted">
+    Fitxers: <span id="dirs"></span> ·
+    <a href="https://github.com/vonbloom/distro-builder">codi</a>
+  </footer>
+</main>
+
+<dialog id="dlg">
+  <div class="dlg">
+    <div class="dlg-head">
+      <strong id="dlg-title"></strong>
+      <span class="muted small" id="dlg-meta"></span>
+      <a class="small" id="dlg-raw" target="_blank">text</a>
+      <button id="dlg-close">Tanca</button>
+    </div>
+    <pre id="log"></pre>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const REFRESH_MS = 30000, LOG_REFRESH_MS = 10000;
+const STATE = { ok: "Correcte", running: "En marxa", failed: "Error", never: "Mai executat" };
+const rtf = new Intl.RelativeTimeFormat("ca", { numeric: "auto" });
+let data = null, openLog = null, logTimer = null;
+const openDiffs = new Set();
+const starting = new Set();  // units started from this page, until the status shows them running
+
+// Small DOM builder: h("td", {class: "num"}, "text", node...). Text always goes through textContent.
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+
+function ago(t) {
+  if (!t) return "—";
+  const s = t - Date.now() / 1000, a = Math.abs(s);
+  const [n, u] = a < 60 ? [s, "second"] : a < 3600 ? [s / 60, "minute"] : a < 86400 ? [s / 3600, "hour"] : [s / 86400, "day"];
+  return rtf.format(Math.round(n), u);
+}
+const when = t => t ? new Date(t * 1000).toLocaleString("ca-ES", { dateStyle: "short", timeStyle: "short" }) : "—";
+const dur = s => s == null ? "—" : s < 60 ? `${s} s` : s < 3600 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min`;
+function size(b) {
+  if (b == null) return "—";
+  const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0;
+  while (b >= 1000 && i < u.length - 1) { b /= 1000; i++; }
+  return `${b.toFixed(b < 10 && i ? 1 : 0)} ${u[i]}`;
+}
+function unitTitle(u) {
+  if (u.kind === "image") return `Imatge ${u.target}`;
+  if (u.kind === "aur") return "Paquets AUR";
+  if (u.kind === "iso") return "ISO instal·lador";
+  return u.unit;
+}
+
+function renderUnits() {
+  const box = document.getElementById("units");
+  box.replaceChildren(...data.units.map(u => h("div", { class: "card" },
+    h("h3", {}, unitTitle(u), h("span", { class: `pill ${u.state}` }, STATE[u.state] || u.state)),
+    h("dl", { class: "kv" },
+      h("dt", {}, u.state === "running" ? "Començat" : "Última"), h("dd", { title: when(u.started) }, u.started ? `${ago(u.started)}` : "—"),
+      h("dt", {}, "Durada"), h("dd", {}, dur(u.duration)),
+      h("dt", {}, "Propera"), h("dd", { title: when(u.next) }, u.next ? ago(u.next) : u.kind === "iso" ? "manual" : "—"),
+      u.state === "failed" ? [h("dt", {}, "Resultat"), h("dd", {}, u.result)] : null),
+    h("div", { class: "actions" },
+      u.log ? h("button", { onclick: () => showLog(u.unit) }, "Registre") : null,
+      h("button", { onclick: e => startBuild(u, e.target), disabled: u.state === "running" || starting.has(u.unit),
+        title: u.state === "running" ? "Ja està en marxa" : "Llança la build ara" },
+        starting.has(u.unit) ? "Llançant…" : "Executa")),
+    h("div", { class: "muted small mono", style: "margin-top:8px" }, u.unit))));
+}
+
+function diffSummary(d) {
+  if (!d) return h("span", { class: "muted" }, "—");
+  return h("span", { class: "changes" },
+    h("span", { class: "u" }, `~${d.updated.length}`), " ",
+    h("span", { class: "a" }, `+${d.added.length}`), " ",
+    h("span", { class: "r" }, `−${d.removed.length}`));
+}
+function diffDetail(d) {
+  const block = (title, items, fmt) => items.length ? [h("h4", {}, `${title} (${items.length})`), h("ul", {}, items.map(i => h("li", {}, fmt(i))))] : null;
+  return h("div", {},
+    block("Actualitzats", d.updated, ([n, o, v]) => `${n} ${o} → ${v}`),
+    block("Afegits", d.added, ([n, v]) => `${n} ${v}`),
+    block("Eliminats", d.removed, ([n, v]) => `${n} ${v}`),
+    !d.updated.length && !d.added.length && !d.removed.length ? h("p", { class: "muted" }, "Cap canvi de paquets.") : null);
+}
+
+function renderImages() {
+  const box = document.getElementById("images");
+  const parts = [];
+  for (const [recipe, images] of Object.entries(data.recipes)) {
+    parts.push(h("h2", {}, `Imatges ${recipe}`));
+    const rows = [h("tr", {}, ["Imatge", "Publicada", "Mida", "Paquets", "Kernel", "Canvis", ""].map(t => h("th", {}, t)))];
+    for (const img of images) {
+      const key = `${recipe}/${img.name}`;
+      const toggle = () => { openDiffs.has(key) ? openDiffs.delete(key) : openDiffs.add(key); renderImages(); };
+      rows.push(h("tr", {},
+        h("td", { class: "mono" }, img.name),
+        h("td", { title: when(img.mtime) }, ago(img.mtime)),
+        h("td", { class: "num" }, size(img.size)),
+        h("td", { class: "num" }, img.packages ?? "—"),
+        h("td", { class: "mono" }, img.kernel ? img.kernel[1] : "—"),
+        h("td", img.diff ? { onclick: toggle, title: "Mostra els canvis respecte de la imatge anterior" } : {}, diffSummary(img.diff)),
+        h("td", {}, h("a", { href: `/${recipe}/${img.name}.pkgs` }, "paquets"))));
+      if (img.diff && openDiffs.has(key)) rows.push(h("tr", { class: "detail" }, h("td", { colspan: 7 }, diffDetail(img.diff))));
+    }
+    if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 7, class: "muted" }, "Cap imatge publicada.")));
+    parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
+  }
+  box.replaceChildren(...parts);
+}
+
+function renderIso() {
+  const box = document.getElementById("iso");
+  if (!data.iso.length) { box.replaceChildren(h("p", { class: "muted" }, "Cap ISO publicada.")); return; }
+  box.replaceChildren(...data.iso.map(i => h("div", { class: "card" },
+    h("h3", {}, h("a", { href: `/iso/${i.name}` }, i.name)),
+    h("dl", { class: "kv" },
+      h("dt", {}, "Publicada"), h("dd", { title: when(i.mtime) }, ago(i.mtime)),
+      h("dt", {}, "Mida"), h("dd", {}, size(i.size)),
+      h("dt", {}, "SHA-256"), h("dd", { class: "mono hash" }, i.sha256 || "—")))));
+}
+
+function renderAur() {
+  const a = data.aur;
+  document.getElementById("aur-meta").textContent = a.updated ? `Base de dades actualitzada ${ago(a.updated)} · ${a.packages.length} paquets` : "";
+  const rows = [h("tr", {}, ["Paquet", "Versió", "Construït", "Origen"].map(t => h("th", {}, t)))];
+  for (const p of a.packages) rows.push(h("tr", {},
+    h("td", { class: "mono" }, h("a", { href: `/aur/${p.file}` }, p.name)),
+    h("td", { class: "mono" }, p.version),
+    h("td", { title: when(p.mtime) }, ago(p.mtime)),
+    h("td", { class: "muted" }, p.listed ? "packages.list" : "dependència")));
+  document.getElementById("aur").replaceChildren(...rows);
+}
+
+function renderMeta() {
+  const st = data.storage, used = st.total - st.free;
+  const c = data.commit;
+  document.getElementById("meta").replaceChildren(
+    `${data.host} · actualitzat ${ago(data.generated)}`,
+    ...(c ? [" · codi ", h("span", { class: "mono", title: c.subject }, c.hash)] : []),
+    h("span", { title: `${size(st.free)} lliures de ${size(st.total)}` },
+      ` · repositori ${size(used)} / ${size(st.total)}`,
+      h("div", { class: "bar" }, h("div", { style: `width:${(100 * used / st.total).toFixed(1)}%` }))));
+  document.getElementById("dirs").replaceChildren(...[...Object.keys(data.recipes), "aur", "iso"]
+    .flatMap((d, i) => [i ? " · " : "", h("a", { href: `/${d}/` }, `/${d}/`)]));
+}
+
+async function load() {
+  try {
+    const r = await fetch("/status/status.json", { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    data = await r.json();
+    document.getElementById("error").textContent = data.generated < Date.now() / 1000 - 300 ? "Les dades fa més de 5 minuts que no s'actualitzen" : "";
+    renderMeta(); renderUnits(); renderImages(); renderIso(); renderAur();
+  } catch (e) {
+    document.getElementById("error").textContent = `No s'han pogut carregar les dades (${e.message})`;
+  }
+}
+
+// Manual builds (serve/build-trigger)
+async function startBuild(u, button) {
+  const queued = u.kind === "image" && data.units.some(x => x.kind === "image" && x.state === "running");
+  if (!confirm(`Vols llançar ara la build «${unitTitle(u)}»?` +
+    (queued ? "\n\nJa hi ha una altra imatge en marxa: esperarà que acabi." : ""))) return;
+  starting.add(u.unit); button.disabled = true; button.textContent = "Llançant…";
+  try {
+    const r = await fetch(`/api/build/${encodeURIComponent(u.unit)}`, { method: "POST", headers: { "X-Distro-Builder": "1" } });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
+    // The trigger regenerates the status: give it a moment, then show the run and its log
+    await new Promise(res => setTimeout(res, 2500));
+    await load();
+    showLog(u.unit);
+  } catch (e) {
+    alert(`No s'ha pogut llançar la build: ${e.message}`);
+  }
+  starting.delete(u.unit);
+  if (data) renderUnits();
+}
+
+// Log viewer: follows the end of the log while the unit runs, unless the user scrolled up
+async function fetchLog() {
+  if (!openLog) return;
+  const pre = document.getElementById("log");
+  const atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
+  try {
+    const r = await fetch(`/status/logs/${encodeURIComponent(openLog)}.txt`, { cache: "no-store" });
+    pre.textContent = r.ok ? await r.text() : `No hi ha registre (HTTP ${r.status})`;
+  } catch (e) { pre.textContent = `No s'ha pogut carregar el registre (${e.message})`; }
+  if (atEnd) pre.scrollTop = pre.scrollHeight;
+  const u = data && data.units.find(x => x.unit === openLog);
+  document.getElementById("dlg-meta").textContent = u ? `${STATE[u.state]} · ${when(u.started)} · ${dur(u.duration)}` : "";
+}
+function showLog(unit) {
+  openLog = unit;
+  const u = data.units.find(x => x.unit === unit);
+  document.getElementById("dlg-title").textContent = u ? unitTitle(u) : unit;
+  document.getElementById("dlg-raw").href = `/status/logs/${encodeURIComponent(unit)}.txt`;
+  document.getElementById("log").textContent = "carregant…";
+  document.getElementById("dlg").showModal();
+  history.replaceState(null, "", `#log=${encodeURIComponent(unit)}`);
+  fetchLog().then(() => { const pre = document.getElementById("log"); pre.scrollTop = pre.scrollHeight; });
+  clearInterval(logTimer);
+  logTimer = setInterval(() => { const x = data.units.find(v => v.unit === openLog); if (x && x.state === "running") fetchLog(); }, LOG_REFRESH_MS);
+}
+document.getElementById("dlg-close").addEventListener("click", () => document.getElementById("dlg").close());
+document.getElementById("dlg").addEventListener("close", () => {
+  openLog = null; clearInterval(logTimer); history.replaceState(null, "", location.pathname);
+});
+
+load().then(() => {
+  const m = location.hash.match(/^#log=(.+)$/);
+  if (m && data) showLog(decodeURIComponent(m[1]));
+});
+setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>

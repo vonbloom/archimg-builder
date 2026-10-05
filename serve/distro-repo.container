@@ -1,12 +1,16 @@
 [Unit]
-Description=Web service for the arkdep images, the aur repository and the installer ISO
-After=network-online.target
+Description=Web service for the arkdep images, the aur repository, the installer ISO and the status page
+After=network-online.target distro-trigger.socket
 Wants=network-online.target
+Requires=distro-trigger.socket
 
 [Container]
 Image=docker.io/library/nginx:alpine
 PublishPort=80:80
-Volume=/home/admin/distro-builder/serve/nginx.conf:/etc/nginx/conf.d/default.conf:Z
+Volume=/home/admin/distro-builder/serve/nginx.conf:/etc/nginx/conf.d/default.conf:ro,Z
+Volume=/home/admin/distro-builder/serve/web:/usr/share/nginx/web:ro,Z
+Volume=/run/distro-status:/usr/share/nginx/status:ro,Z
+Volume=/run/distro-trigger:/run/distro-trigger
 Volume=/mnt/repo:/usr/share/nginx/html:Z
 
 [Service]

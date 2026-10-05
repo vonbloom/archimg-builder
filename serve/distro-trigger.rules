@@ -1,0 +1,9 @@
+// Let serve/build-trigger (runs as admin) start the build units and the status generator from
+// the status page, without a password. Installed to /etc/polkit-1/rules.d by ./install.
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" && subject.user == "admin" &&
+        action.lookup("verb") == "start" &&
+        /^(build-(aur|iso|image@[a-z0-9][a-z0-9_-]*)|distro-status)\.service$/.test(action.lookup("unit"))) {
+        return polkit.Result.YES;
+    }
+});

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Install the build units and the repository web service, and enable the timers (run as root on
-# the build server). Usage: install [recipe...]   (image recipes to schedule, default: p14s t480)
+# Install the build units, the status page (generator and build trigger) and the web server, and
+# enable the timers
+# (run as root on the build server). Idempotent: run it again after changes to systemd/ or serve/.
+# Usage: install [recipe...]   (image recipes to schedule, default: p14s t480)
 
 set -euo pipefail
 
@@ -9,12 +11,21 @@ cd "$(dirname "$(readlink -f "$0")")"
 RECIPES=("$@")
 [[ $# -eq 0 ]] && RECIPES=(p14s t480)
 
-ln -sf "$(pwd)"/systemd/build-{image@,aur}.{service,timer} /etc/systemd/system/
+ln -sf "$(pwd)"/systemd/build-{image@,aur}.{service,timer} "$(pwd)"/systemd/build-iso.service \
+	"$(pwd)"/systemd/distro-status.{service,timer} "$(pwd)"/systemd/distro-trigger.{service,socket} \
+	/etc/systemd/system/
 ln -sf "$(pwd)"/serve/distro-repo.container /etc/containers/systemd/
+ln -sf "$(pwd)"/serve/distro-status.tmpfiles /etc/tmpfiles.d/distro-status.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/distro-status.conf
+# Copied, not linked: polkitd cannot read the admin home directory
+install -m 644 serve/distro-trigger.rules /etc/polkit-1/rules.d/50-distro-trigger.rules
 systemctl daemon-reload
 
 systemctl enable --now build-aur.timer
 for recipe in "${RECIPES[@]}"; do
 	systemctl enable --now "build-image@$recipe.timer"
 done
+systemctl enable --now distro-status.timer distro-trigger.socket
+systemctl try-restart distro-trigger.service  # new code of serve/build-trigger
+systemctl start distro-status.service  # first status before the web server serves the page
 systemctl restart distro-repo.service

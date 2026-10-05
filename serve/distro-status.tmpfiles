@@ -1,0 +1,3 @@
+# Output of status-gen, served at /status/: on tmpfs, so the minutely rewrite does not touch the disk.
+# Created at boot, before the web server container bind-mounts it.
+d /run/distro-status 0755 root root -

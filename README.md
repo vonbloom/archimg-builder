@@ -16,8 +16,8 @@ new machine.
 image/    recipes (arkdep-build.d/), build, prune, notify-image
 aur/      packages.list, aur-build.sh, build
 iso/      installer ISO: Containerfile, build, test-vm, airootfs/ (install.sh, arkdep.config)
-serve/    nginx quadlet that publishes /mnt/repo over HTTP
-systemd/  build-image@.{service,timer}, build-aur.{service,timer}
+serve/    web server (nginx quadlet): /mnt/repo and the status page (web/, status-gen, build-trigger)
+systemd/  build units and timers, distro-status (page data), distro-trigger (manual builds)
 lib/      builder.sh, shared by the build scripts
 install   sets up the build server
 ```
@@ -44,9 +44,10 @@ sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14
 ```
 
 `install` links the units in `systemd/` into `/etc/systemd/system`, the quadlet
-`serve/distro-repo.container` into `/etc/containers/systemd`, enables `build-aur.timer` and one
-`build-image@<recipe>.timer` per recipe (default `p14s t480`), and (re)starts the web server. It is
-idempotent: run it again to schedule other recipes.
+`serve/distro-repo.container` into `/etc/containers/systemd`, installs the polkit rule of the build
+trigger, enables `build-aur.timer`, one `build-image@<recipe>.timer` per recipe (default
+`p14s t480`), `distro-status.timer` and `distro-trigger.socket`, and (re)starts the web server. It
+is idempotent: run it again to schedule other recipes, or after changing `systemd/` or `serve/`.
 
 Every build unit pulls the checkout (`git pull --ff-only`, as `admin`) before building, so a
 push to GitHub is enough for the next build to use it. A failed pull does not stop the build. The
@@ -60,8 +61,8 @@ inside never go stale.
 
 ### Web server
 
-`serve/distro-repo.container` runs `nginx:alpine` on port 80 with `/mnt/repo` as its document root
-and directory listings on (the installer reads the recipe list from the index):
+`serve/distro-repo.container` runs `nginx:alpine` on port 80 (a podman quadlet, so systemd runs it
+as `distro-repo.service`) with `/mnt/repo` as its document root and directory listings on:
 
 ```
 /mnt/repo/
@@ -70,6 +71,32 @@ and directory listings on (the installer reads the recipe list from the index):
 ├── aur/    aur.db, *.pkg.tar.zst
 └── iso/    distro-installer-YYYY.MM.DD-x86_64.iso, sha256sums.txt
 ```
+
+### Status page
+
+`http://192.168.2.50/` is a status page (`serve/web/index.html`, a single static file) instead of
+the directory listing (still available under each directory):
+
+- **Builds**: state, last run, duration and next run of each build unit, with its log (follows the
+  end while the build runs) and an **Executa** button to start it now;
+- **Images** per recipe: size, packages, kernel and the package changes since the previous image;
+- **Installer**: the ISO with its SHA-256; **`[aur]`**: packages and versions.
+
+Three pieces, all run by systemd:
+
+| Piece | Unit | Does |
+|---|---|---|
+| `serve/status-gen` | `distro-status.timer` (every minute) | reads systemd, the journal and `/mnt/repo`; writes `status.json`, `recipes.txt` and `logs/<unit>.txt` to `/run/distro-status`, served at `/status/` |
+| `serve/build-trigger` | `distro-trigger.socket` (socket activated) | `POST /api/build/<unit>`, proxied by nginx through `/run/distro-trigger/trigger.sock`: starts a build unit |
+| `serve/web/index.html` | `distro-repo.service` (nginx) | the page; reads `/status/` every 30 s |
+
+`build-trigger` runs as `admin`; the polkit rule `serve/distro-trigger.rules` (copied to
+`/etc/polkit-1/rules.d`) only lets it start `build-*.service` and `distro-status.service`. Only
+units shown on the page can be started, and requests need an `X-Distro-Builder` header, so other
+web sites cannot start builds from a visitor's browser. There is no login: anyone on the LAN can
+see the page and start builds.
+
+`/status/recipes.txt` lists the recipes with images; the installer reads it for its recipe menu.
 
 ### Notifications
 
@@ -186,13 +213,14 @@ from the installer). Nothing is downloaded from the Arch mirrors during the inst
 ### Building
 
 ```sh
-sudo systemd-run --unit=build-iso --collect ~/distro-builder/iso/build   # on the build server
+sudo systemctl start --no-block build-iso   # on the build server, or Executa on the status page
 journalctl -fu build-iso
 ```
 
 `iso/build [output_dir]` builds `iso-builder` on top of `arkdep-builder` (which already trusts the
 arkane signing key) with `archiso`, runs `mkarchiso` and moves the ISO to `/mnt/repo/iso/`
-(default), replacing the previous one and writing `sha256sums.txt`. There is no timer: rebuild it
+(default), replacing the previous one and writing `sha256sums.txt`. `build-iso.service` runs it
+after pulling the checkout, one build at a time with the images. There is no timer: rebuild it
 when the installer changes or when the live system is too old for new hardware.
 
 ### Installing a machine

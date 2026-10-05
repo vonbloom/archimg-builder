@@ -1,0 +1,9 @@
+[Unit]
+Description=Start builds from the status page
+Requires=distro-trigger.socket
+
+[Service]
+# Allowed to start the build units by serve/distro-trigger.rules (polkit)
+User=admin
+ExecStart=/home/admin/distro-builder/serve/build-trigger
+NoNewPrivileges=yes

@@ -1,0 +1,10 @@
+[Unit]
+Description=Socket to start builds from the status page
+
+[Socket]
+# Mounted in the web server container (serve/distro-repo.container); its nginx workers run as uid 101
+ListenStream=/run/distro-trigger/trigger.sock
+SocketMode=0666
+
+[Install]
+WantedBy=sockets.target

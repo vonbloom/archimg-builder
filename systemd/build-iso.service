@@ -1,0 +1,15 @@
+[Unit]
+Description=Build the installer ISO and publish it
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/repo
+# notify-failure@ comes from the homelab repo (notify_ha role)
+OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+# Same checkout update as the scheduled builds (see build-image@.service)
+ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u admin -- git -C /home/admin/distro-builder pull --ff-only
+# The ISO builder derives from arkdep-builder: never build both at the same time
+ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/iso/build
+TimeoutStartSec=3h

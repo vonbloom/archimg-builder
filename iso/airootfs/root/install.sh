@@ -39,7 +39,7 @@ if ! repo_reachable; then
 	repo_reachable || die "$REPO_URL is still not reachable"
 fi
 
-# --- Recipe: detected from the machine model, otherwise chosen from the repository index ---
+# --- Recipe: detected from the machine model, otherwise chosen from the published recipes ---
 case $(</sys/class/dmi/id/product_name) in
 20Y1*) recipe=p14s ;;
 20L5* | 20L6*) recipe=t480 ;;
@@ -50,8 +50,8 @@ if [[ -n $recipe ]]; then
 	[[ $answer =~ ^[nN] ]] && recipe=
 fi
 if [[ -z $recipe ]]; then
-	mapfile -t recipes < <(curl -sf "$REPO_URL/" | grep -o 'href="[^"./]*/"' | sed 's/^href="//; s/\/"$//' |
-		while read -r r; do curl -sfI -o /dev/null "$REPO_URL/$r/database" && echo "$r"; done)
+	# Recipes with published images, listed by the server's status page generator
+	mapfile -t recipes < <(curl -sf "$REPO_URL/status/recipes.txt")
 	((${#recipes[@]})) || die "No images found in $REPO_URL"
 	PS3="Recipe: "
 	select recipe in "${recipes[@]}"; do [[ -n $recipe ]] && break; done

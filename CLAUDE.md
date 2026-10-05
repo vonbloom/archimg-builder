@@ -11,10 +11,14 @@ comments and commit messages are in English (short, sentence-style subjects).
 image/    arkdep image recipes (arkdep-build.d/) and build, prune, notify-image
 aur/      AUR packages (packages.list) built into the [aur] repository
 iso/      installer ISO: Arch releng profile + arkdep + airootfs/root/install.sh; test-vm
-serve/    nginx quadlet serving /mnt/repo: /<recipe>/, /aur/, /iso/
-systemd/  build-image@.{service,timer}, build-aur.{service,timer}
+serve/    nginx quadlet serving /mnt/repo (/<recipe>/, /aur/, /iso/) and the status page at /
+          (web/index.html; status-gen writes /run/distro-status, served at /status/;
+          build-trigger starts builds: POST /api/build/<unit>, polkit rule distro-trigger.rules)
+systemd/  build-image@.{service,timer}, build-aur.{service,timer}, build-iso.service,
+          distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days)
-install   links the units and the quadlet, enables the timers (run as root on the server)
+install   links the units and the quadlet, installs the polkit rule, enables the timers and the
+          trigger socket (run as root on the server; rerun after changing systemd/ or serve/)
 ```
 
 All builds run on the server `192.168.2.50` (Debian, rootful podman via `sudo`, checkout
@@ -120,12 +124,13 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `sudo iso/build [output_dir]` builds `iso-builder` (from `arkdep-builder`, which already trusts
   the arkane key, plus `archiso`) and runs `mkarchiso` on Arch's `releng` profile with `arkdep`
   (from `[arkane]`) added and `iso/airootfs/` copied over. The ISO goes to `/mnt/repo/iso/`
-  (`http://192.168.2.50/iso/`, with `sha256sums.txt`); older ISOs are deleted. No timer: rebuild
-  it when the installer changes or the live system gets too old.
+  (`http://192.168.2.50/iso/`, with `sha256sums.txt`); older ISOs are deleted. Run through
+  `build-iso.service` (pull + `flock /run/build-image.lock`). No timer: rebuild it when the
+  installer changes or the live system gets too old.
 - The ISO contains no image: `/root/install.sh` deploys the newest image of a recipe straight from
   the repository, so it needs the LAN (Wi-Fi through `iwctl` if there is no cable), not the
   internet. Steps: recipe (from the DMI model: `20Y1` p14s, `20L5`/`20L6` t480, otherwise a menu of
-  the recipes in the repo index), disk, password, then GPT with a 1G ESP (`EFI`) and btrfs `ROOT`,
+  the recipes in `/status/recipes.txt`), disk, password, then GPT with a 1G ESP (`EFI`) and btrfs `ROOT`,
   `/swap/swapfile` sized to RAM (hibernation `resume=` options), `ARKDEP_ROOT=/mnt arkdep init` +
   `arkdep deploy <recipe>`, systemd-boot, user `roger` and fstab in the new deployment.
 - `iso/airootfs/root/arkdep.config` is the canonical `/arkdep/config` for new installs: keep it in

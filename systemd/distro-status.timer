@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the build server status every minute
+
+[Timer]
+OnBootSec=20s
+OnCalendar=minutely
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

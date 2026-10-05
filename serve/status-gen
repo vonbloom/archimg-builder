@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""Write the build server status read by the web page (serve/web/index.html).
+
+Runs as root every minute (distro-status.timer): reads the build units from systemd and the
+journal, and the files published under /mnt/repo, and writes to the output directory (default
+/run/distro-status, served at /status/):
+
+  status.json        units, images per recipe with package changes, [aur] packages, ISO, storage
+  recipes.txt        one recipe per line (read by the installer to offer a recipe menu)
+  logs/<unit>.txt    journal of the last run of each build unit
+
+Usage: status-gen [--out DIR] [--repo DIR]
+"""
+
+import argparse
+import json
+import os
+import re
+import socket
+import subprocess
+import tempfile
+import time
+
+LOG_LINES = 1500
+CHECKOUT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+UNIT_PROPS = [
+    "Description",
+    "LoadState",
+    "ActiveState",
+    "Result",
+    "InactiveExitTimestamp",
+    "InactiveEnterTimestamp",
+]
+TIMER_PROPS = ["NextElapseUSecRealtime", "LastTriggerUSec"]
+
+
+def run(cmd):
+    """Output of a command, or "" if it fails: the status page must always be written."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def show(unit, props):
+    out = run(["systemctl", "show", unit, "--timestamp=unix", "-p", ",".join(props)])
+    return dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
+
+
+def epoch(value):
+    """systemctl --timestamp=unix prints "@<seconds>", but timer properties such as
+    NextElapseUSecRealtime ignore it and print a date ("Tue 2026-10-06 04:14:38 UTC").
+    Empty, "0" or "n/a" when unset."""
+    value = (value or "").strip()
+    m = re.fullmatch(r"@(\d+)", value)
+    if m:
+        return int(m.group(1)) or None
+    if not re.search(r"\d{4}-\d{2}-\d{2}", value):
+        return None
+    out = run(["date", "-d", value, "+%s"]).strip()
+    return int(out) if out.isdigit() else None
+
+
+def unit_kind(unit):
+    if unit.startswith("build-image@"):
+        return "image", unit[len("build-image@") : -len(".service")]
+    if unit == "build-aur.service":
+        return "aur", None
+    if unit == "build-iso.service":
+        return "iso", None
+    return "other", None
+
+
+def build_units():
+    """Build units with a timer (build-aur, build-image@<recipe>) plus build-iso (manual)."""
+    out = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", "--type=timer", "build-*"])
+    timers = sorted(line.split()[0] for line in out.splitlines() if line.strip())
+    units = [t[: -len(".timer")] + ".service" for t in timers]
+    return units + ["build-iso.service"], {u: t for u, t in zip(units, timers)}
+
+
+def unit_status(unit, timer, now):
+    p = show(unit, UNIT_PROPS)
+    if p.get("LoadState") not in ("loaded",):
+        return None
+    started = epoch(p.get("InactiveExitTimestamp"))
+    finished = epoch(p.get("InactiveEnterTimestamp"))
+    active = p.get("ActiveState")
+    if active in ("activating", "active", "reloading", "deactivating"):
+        state, finished = "running", None
+    elif active == "failed" or (started and p.get("Result") not in ("success", None)):
+        state = "failed"
+    elif started:
+        state = "ok"
+    else:
+        state = "never"
+    duration = None
+    if started and state == "running":
+        duration = now - started
+    elif started and finished and finished >= started:
+        duration = finished - started
+    t = show(timer, TIMER_PROPS) if timer else {}
+    kind, target = unit_kind(unit)
+    return {
+        "unit": unit,
+        "kind": kind,
+        "target": target,
+        "description": p.get("Description", ""),
+        "state": state,
+        "result": p.get("Result"),
+        "started": started,
+        "finished": finished,
+        "duration": duration,
+        "next": epoch(t.get("NextElapseUSecRealtime")),
+        "log": f"logs/{unit}.txt" if started else None,
+    }
+
+
+def unit_log(unit, started):
+    """Journal of the last run (container output included: podman logs it under the unit)."""
+    out = run(["journalctl", "-u", unit, "--since", f"@{started}", "-n", str(LOG_LINES),
+               "-o", "short-iso", "--no-pager", "--no-hostname"])
+    return ANSI.sub("", out)
+
+
+def read_pkgs(path):
+    try:
+        with open(path) as f:
+            return dict(line.split(maxsplit=1) for line in map(str.strip, f) if " " in line)
+    except OSError:
+        return None
+
+
+def pkg_diff(old, new):
+    return {
+        "added": sorted([n, v] for n, v in new.items() if n not in old),
+        "removed": sorted([n, v] for n, v in old.items() if n not in new),
+        "updated": sorted([n, old[n], v] for n, v in new.items() if n in old and old[n] != v),
+    }
+
+
+def recipe_images(repo, recipe):
+    """Images listed in the recipe database (newest first), with the changes since the previous one."""
+    base = os.path.join(repo, recipe)
+    try:
+        with open(os.path.join(base, "database")) as f:
+            names = [line.split(":", 1)[0] for line in map(str.strip, f) if line]
+    except OSError:
+        return []
+    images = []
+    for name in names:
+        try:
+            st = os.stat(os.path.join(base, f"{name}.tar.zst"))
+        except OSError:
+            continue
+        pkgs = read_pkgs(os.path.join(base, f"{name}.pkgs"))
+        kernel = next(([k, pkgs[k]] for k in ("linux-cachyos", "linux") if pkgs and k in pkgs), None)
+        date = re.search(r"\d{4}-\d{2}-\d{2}", name)
+        images.append({
+            "name": name,
+            "date": date.group(0) if date else None,
+            "mtime": int(st.st_mtime),
+            "size": st.st_size,
+            "packages": len(pkgs) if pkgs is not None else None,
+            "kernel": kernel,
+            "_pkgs": pkgs,
+        })
+    for i, img in enumerate(images):
+        prev = images[i + 1]["_pkgs"] if i + 1 < len(images) else None
+        img["diff"] = pkg_diff(prev, img["_pkgs"]) if prev is not None and img["_pkgs"] is not None else None
+    for img in images:
+        del img["_pkgs"]
+    return images
+
+
+def aur_packages(repo):
+    """Newest file of each package in the [aur] repository; listed = in aur/packages.list."""
+    base = os.path.join(repo, "aur")
+    listed = set()
+    try:
+        with open(os.path.join(CHECKOUT, "aur", "packages.list")) as f:
+            listed = {line.split("#")[0].strip() for line in f} - {""}
+    except OSError:
+        pass
+    newest = {}
+    try:
+        files = os.listdir(base)
+    except OSError:
+        return {"updated": None, "packages": []}
+    for name in files:
+        if not name.endswith(".pkg.tar.zst"):
+            continue
+        parts = name[: -len(".pkg.tar.zst")].rsplit("-", 3)
+        if len(parts) != 4:
+            continue
+        pkg, ver, rel, _arch = parts
+        mtime = int(os.stat(os.path.join(base, name)).st_mtime)
+        if pkg not in newest or mtime > newest[pkg]["mtime"]:
+            newest[pkg] = {"name": pkg, "version": f"{ver}-{rel}", "mtime": mtime,
+                           "listed": pkg in listed, "file": name}
+    try:
+        updated = int(os.stat(os.path.join(base, "aur.db.tar.zst")).st_mtime)
+    except OSError:
+        updated = None
+    return {"updated": updated, "packages": sorted(newest.values(), key=lambda p: p["name"])}
+
+
+def isos(repo):
+    base = os.path.join(repo, "iso")
+    sums = {}
+    try:
+        with open(os.path.join(base, "sha256sums.txt")) as f:
+            for line in f:
+                if len(line.split()) == 2:
+                    digest, name = line.split()
+                    sums[name.lstrip("*")] = digest
+    except OSError:
+        pass
+    out = []
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+        if name.endswith(".iso"):
+            st = os.stat(os.path.join(base, name))
+            out.append({"name": name, "size": st.st_size, "mtime": int(st.st_mtime),
+                        "sha256": sums.get(name)})
+    return out
+
+
+def commit():
+    out = run(["git", "-c", f"safe.directory={CHECKOUT}", "-C", CHECKOUT,
+               "log", "-1", "--format=%h%x00%ct%x00%s"])
+    parts = out.strip().split("\0")
+    return {"hash": parts[0], "date": int(parts[1]), "subject": parts[2]} if len(parts) == 3 else None
+
+
+def write(path, text):
+    """Atomic write, so the page never reads a half-written file."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--out", default="/run/distro-status")
+    ap.add_argument("--repo", default="/mnt/repo")
+    args = ap.parse_args()
+    now = int(time.time())
+    os.makedirs(os.path.join(args.out, "logs"), exist_ok=True)
+
+    units, timers = build_units()
+    statuses = []
+    for unit in units:
+        s = unit_status(unit, timers.get(unit), now)
+        if s is None:
+            continue
+        statuses.append(s)
+        if s["started"]:
+            write(os.path.join(args.out, s["log"]), unit_log(unit, s["started"]))
+
+    recipes = sorted(d for d in os.listdir(args.repo)
+                     if os.path.isfile(os.path.join(args.repo, d, "database")))
+    st = os.statvfs(args.repo)
+    status = {
+        "generated": now,
+        "host": socket.gethostname(),
+        "commit": commit(),
+        "storage": {"total": st.f_blocks * st.f_frsize, "free": st.f_bavail * st.f_frsize},
+        "units": statuses,
+        "recipes": {r: recipe_images(args.repo, r) for r in recipes},
+        "aur": aur_packages(args.repo),
+        "iso": isos(args.repo),
+    }
+    write(os.path.join(args.out, "recipes.txt"), "".join(f"{r}\n" for r in recipes))
+    write(os.path.join(args.out, "status.json"), json.dumps(status, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,9 @@
+[Unit]
+Description=Write the build server status for the web page
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/home/admin/distro-builder/serve/status-gen
+# Runs every minute: keep its start/finish messages out of the journal
+LogLevelMax=notice
