@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install the newest arkdep image of a recipe from the build server onto a whole disk.
 # Runs on the live ISO: partitions the disk (ESP + btrfs ROOT), initializes arkdep with
-# /root/arkdep.config, deploys the image and sets up the user, swap (hibernation) and systemd-boot.
+# /root/arkdep.config, deploys the image and sets up the user, swap (hibernation) and systemd-boot
+# (entries from /root/systemd-boot.template).
 # Only the LAN is needed: nothing is installed from the Arch mirrors.
 
 set -euo pipefail
@@ -11,8 +12,6 @@ USER_NAME=roger
 USER_GROUPS=(wheel input video render audio kvm libvirt)
 ESP_LABEL=EFI
 ROOT_LABEL=ROOT
-KERNEL_OPTS="rw quiet splash loglevel=3 rd.systemd.show_status=false rd.udev.log_level=3"
-KERNEL_OPTS+=" lsm=landlock,lockdown,yama,integrity,apparmor,bpf transparent_hugepage=madvise"
 MNT=/mnt
 
 die() {
@@ -104,14 +103,10 @@ arkdep init
 cp /root/arkdep.config $MNT/arkdep/config
 sed -i "s/^repo_default_image=.*/repo_default_image='$recipe'/" $MNT/arkdep/config
 mkdir -p $MNT/arkdep/overlay/swap # mount point for /swap in the read-only rootfs
-cat >$MNT/arkdep/templates/systemd-boot <<EOF
-title Arch Linux - Arkdep
-linux /arkdep/%target%/vmlinuz
-initrd /amd-ucode.img
-initrd /intel-ucode.img
-initrd /arkdep/%target%/initramfs-linux.img
-options root="LABEL=$ROOT_LABEL" rootflags=subvol=/arkdep/deployments/%target%/rootfs $KERNEL_OPTS $resume_opts
-EOF
+# Boot entry template: the kernel options live in the file, only the machine-specific values are
+# filled in here (arkdep replaces %target% with the deployment name)
+sed -e "s|@ROOT_LABEL@|$ROOT_LABEL|" -e "s|@RESUME@|$resume_opts|" /root/systemd-boot.template \
+	>$MNT/arkdep/templates/systemd-boot
 
 bootctl --esp-path=$MNT/boot install
 cat >$MNT/boot/loader/loader.conf <<EOF

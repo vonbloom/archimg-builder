@@ -220,8 +220,9 @@ What the installer does:
 | User | `roger` (UID 1000, zsh) in `wheel input video render audio kvm libvirt`, with the group IDs read from the image; subuid/subgid `100000:65536` for rootless podman; home in the shared `/home` subvolume |
 | fstab | shared subvolumes `/home`, `/root`, `/arkdep`, `/var/lib/flatpak`, `/swap`, the ESP on `/boot` |
 
-`iso/airootfs/root/arkdep.config` is the reference `/arkdep/config` for new installs; keep it in
-line with the laptops (`repo_url`, `deploy_keep`, `migrate_files`).
+`iso/airootfs/root/arkdep.config` and `iso/airootfs/root/systemd-boot.template` are the reference
+`/arkdep/config` and boot entry template (title, kernel options) for new installs; keep them in
+line with the laptops (`/arkdep/config`, `/arkdep/templates/systemd-boot`).
 
 ### Testing in a VM
 
