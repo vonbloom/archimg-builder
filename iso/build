@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Usage: build [output_dir]   (default: /mnt/repo/iso, served at http://192.168.2.50/iso/)
+# Build the installer ISO (as root: mkarchiso needs loop devices). Only the newest ISO is kept.
+
+set -euo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")"
+source ../lib/builder.sh
+
+OUTPUT=${1:-/mnt/repo/iso}
+
+# The ISO builder derives from arkdep-builder; it is cheap, so it is rebuilt every time
+ensure_builder arkdep-builder ../image 0
+podman build --pull=never --no-cache --rm -t iso-builder .
+
+mkdir -p "$OUTPUT/.new"
+podman run --privileged --rm -v "$OUTPUT/.new":/output:Z iso-builder
+rm -f "$OUTPUT"/*.iso
+mv "$OUTPUT"/.new/*.iso "$OUTPUT"/
+rmdir "$OUTPUT/.new"
+cd "$OUTPUT" && sha256sum -- *.iso >sha256sums.txt
+podman image prune -f

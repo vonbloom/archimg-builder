@@ -1,0 +1,16 @@
+# Built on the image builder, which already trusts the arkane signing key (arkdep comes from [arkane])
+FROM localhost/arkdep-builder
+
+RUN pacman -Syu --noconfirm --needed archiso && \
+    pacman -Scc --noconfirm
+
+# Arch's releng profile plus arkdep and the installer
+WORKDIR /build
+RUN cp -r /usr/share/archiso/configs/releng profile && \
+    printf '\n[arkane]\nServer = https://repo.arkanelinux.org/$repo/os/$arch\n' >> profile/pacman.conf && \
+    echo arkdep >> profile/packages.x86_64 && \
+    sed -i 's/^iso_name=.*/iso_name="distro-installer"/' profile/profiledef.sh && \
+    sed -i '/^file_permissions=(/a\  ["/root/install.sh"]="0:0:755"' profile/profiledef.sh
+COPY airootfs/ profile/airootfs/
+
+ENTRYPOINT ["mkarchiso", "-v", "-w", "/tmp/archiso-tmp", "-o", "/output", "/build/profile"]
