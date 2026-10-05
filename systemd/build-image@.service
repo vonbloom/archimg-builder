@@ -8,6 +8,9 @@ OnFailure=notify-failure@%n.service
 
 [Service]
 Type=oneshot
+# Bring the checkout up to date first (fast-forward only). A failed pull (GitHub down, local
+# changes) does not stop the build: it runs with the code already there.
+ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u admin -- git -C /home/admin/distro-builder pull --ff-only
 # Builds of different recipes are started together by their timers: run them one at a time
 ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/image/build %i
 ExecStartPost=/home/admin/distro-builder/image/prune %i

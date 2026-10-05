@@ -19,7 +19,8 @@ install   links the units and the quadlet, enables the timers (run as root on th
 
 All builds run on the server `192.168.2.50` (Debian, rootful podman via `sudo`, checkout
 `/home/admin/distro-builder`), never on the laptops. `/mnt/repo` there is NFS from zeus
-(`192.168.2.10`). A failed build triggers `notify-failure@` (Home Assistant push); both
+(`192.168.2.10`). Each build unit runs `git pull --ff-only` (as `admin`, non-fatal) first, so
+pushing is enough; changes to `systemd/` also need `systemctl daemon-reload`. A failed build triggers `notify-failure@` (Home Assistant push); both
 `notify-ha` and that unit come from the homelab repo (role `notify_ha`).
 
 User-facing documentation (setup, usage of each tool, installer steps) is in `README.md`: keep

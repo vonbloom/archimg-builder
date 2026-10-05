@@ -44,11 +44,12 @@ sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14
 `install` links the units in `systemd/` into `/etc/systemd/system`, the quadlet
 `serve/distro-repo.container` into `/etc/containers/systemd`, enables `build-aur.timer` and one
 `build-image@<recipe>.timer` per recipe (default `p14s t480`), and (re)starts the web server. It is
-idempotent: run it again after pulling changes to units or recipes lists. To update the server:
+idempotent: run it again to schedule other recipes.
 
-```sh
-git -C ~/distro-builder pull && sudo systemctl daemon-reload
-```
+Every build unit pulls the checkout (`git pull --ff-only`, as `admin`) before building, so a
+push to GitHub is enough for the next build to use it. A failed pull does not stop the build. The
+units and timers themselves are only reloaded by systemd: after changing a file in `systemd/`,
+run `sudo systemctl daemon-reload` on the server once the pull has brought it in.
 
 Each tool builds inside its own throwaway podman *builder* image (`arkdep-builder`, `aur-builder`,
 `iso-builder`). `lib/builder.sh` (`ensure_builder`) rebuilds a builder image from scratch when it
