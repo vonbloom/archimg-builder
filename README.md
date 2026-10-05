@@ -34,10 +34,12 @@ checkout `/home/admin/distro-builder`), never on the laptops. Requirements:
 - `notify-ha` and the `notify-failure@.service` template, installed by the homelab repo (Ansible
   role `notify_ha`), for the Home Assistant notifications.
 
-The VM is created by the homelab repo (`pve_guests`), whose cloud-init clones this repository.
-Then, once:
+The VM is defined in the homelab repo and is rebuilt from scratch rather than backed up: Ansible
+creates it (`pve_guests`, cloud-init), clones this repository and runs `install` (play "Build
+server"). Step by step: `docs/rebuild.md` in the homelab repo. To set up a server by hand:
 
 ```sh
+git clone https://github.com/vonbloom/distro-builder.git ~/distro-builder
 sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14s t480 ...
 ```
 
