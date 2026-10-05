@@ -64,6 +64,12 @@ input type:keyboard {
 # for_window [app_id="brave-browser"] move container to workspace number 2
 assign [app_id="brave-browser"] workspace number 2
 for_window [instance="^pinentry.*"] floating enable, border pixel 1, sticky enable, move position center
+for_window [title="Apache JMeter"] floating enable
+focus_follows_mouse no
+
+# Laptop panel off while the lid is closed (docked)
+bindswitch --reload --locked lid:on output eDP-1 disable
+bindswitch --reload --locked lid:off output eDP-1 enable
 
 #
 # You can also configure each device individually.
@@ -219,6 +225,10 @@ bindsym $mod+r mode "resize"
     bindsym --locked XF86MonBrightnessUp exec brightnessctl set 5%+
     # Special key to take a screenshot with grim
     bindsym Print exec grim
+    # Screenshot of a selected area to the clipboard
+    bindsym Shift+Print exec grim -g "$(slurp)" - | wl-copy -t image/png
+    # Wallpaper picker (rofi)
+    bindsym $mod+Shift+w exec wallpaper-menu
 
 #
 # Status Bar:

@@ -10,7 +10,6 @@
         "sway/workspaces",
         "sway/mode",
         "sway/scratchpad",
-        "custom/media",
         "sway/window"
     ],
     "modules-center": [
