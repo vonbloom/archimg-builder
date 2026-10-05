@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Session and power menu (rofi), opened by $mod+Shift+e and the waybar power button.
+# Ending the session, rebooting and powering off ask for confirmation.
+
+set -uo pipefail
+
+LOCK=󰌾 LOGOUT=󰍃 SUSPEND=󰤄 HIBERNATE=󰒲 REBOOT=󰜉 POWEROFF=󰐥
+
+menu() { # menu <prompt> <entries...>
+	printf '%s\n' "${@:2}" | rofi -dmenu -i -no-custom -p "$1" -theme-str 'window { width: 320px; }'
+}
+
+confirm() {
+	[[ $(menu "$1?" "Sí" "No") == "Sí" ]]
+}
+
+choice=$(menu "Sessió" \
+	"$LOCK  Bloqueja" \
+	"$LOGOUT  Surt de la sessió" \
+	"$SUSPEND  Suspèn" \
+	"$HIBERNATE  Hiberna" \
+	"$REBOOT  Reinicia" \
+	"$POWEROFF  Apaga") || exit 0
+
+case $choice in
+"$LOCK"*) swaylock -f -c 000000 ;;
+"$LOGOUT"*) confirm "Surt de la sessió" && systemctl --user stop sway-session.target && swaymsg exit ;;
+"$SUSPEND"*) systemctl suspend ;;
+"$HIBERNATE"*) systemctl hibernate ;;
+"$REBOOT"*) confirm "Reinicia" && systemctl reboot ;;
+"$POWEROFF"*) confirm "Apaga" && systemctl poweroff ;;
+esac

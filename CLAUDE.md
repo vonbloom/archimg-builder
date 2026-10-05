@@ -166,6 +166,12 @@ How `arkdep-build` processes a recipe (relevant constraints):
   dynamic sysusers GID). If an image changes that GID, networkd cannot read the key.
 - **Journal**: `/var/log/journal` is per deployment; capped with `SystemMaxUse=1G` in
   `depends/generic/.../journald.conf.d/50-size.conf` (default would be 4 GiB each).
+- **Menus**: every system menu is a rofi script in `depends/sway/.../usr/local/bin` (e.g.
+  `power-menu`, bound to `$mod+Shift+e` and the waybar power button), using the system theme
+  (`/etc/rofi.rasi`). Do not add GTK menus (waybar `menu-file`) or swaynag dialogs.
+- **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
+  (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
+  `fc-list ":charset=<hex>"`.
 
 ## Verifying changes without building
 

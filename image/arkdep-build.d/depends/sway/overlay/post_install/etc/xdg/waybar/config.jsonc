@@ -219,13 +219,6 @@
     "custom/power": {
         "format": "⏻ ",
         "tooltip": false,
-        "menu": "on-click",
-        "menu-file": "/etc/xdg/waybar/power_menu.xml",
-        "menu-actions": {
-            "suspend": "systemctl suspend",
-            "hibernate": "systemctl hibernate",
-            "reboot": "systemctl reboot",
-            "poweroff": "systemctl poweroff"
-        }
+        "on-click": "power-menu"
     }
 }

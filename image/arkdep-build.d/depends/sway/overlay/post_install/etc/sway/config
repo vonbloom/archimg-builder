@@ -92,9 +92,8 @@ for_window [instance="^pinentry.*"] floating enable, border pixel 1, sticky enab
     # Reload the configuration file
     bindsym $mod+Shift+c reload
 
-    # Exit sway (logs you out of your Wayland session)
-    # bindsym $mod+Shift+e exec swaynag -t warning -m 'You pressed the exit shortcut. Do you really want to exit sway? This will end your Wayland session.' -B 'Yes, exit sway' 'swaymsg exit'
-    bindsym $mod+Shift+e exec systemctl --user stop sway-session.target && swaymsg exit
+    # Session and power menu (rofi): lock, log out, suspend, hibernate, reboot, power off
+    bindsym $mod+Shift+e exec power-menu
 #
 # Moving around:
 #
