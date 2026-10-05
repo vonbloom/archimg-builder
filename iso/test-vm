@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Usage: test-vm iso    download the newest installer ISO and boot it in a throwaway UEFI VM
+#        test-vm disk   boot the disk installed by a previous run
+#        test-vm clean  delete the VM files
+# The VM has an NVMe disk and NAT networking (it reaches the LAN through this host). Its screen is
+# on VNC localhost:5901: `remote-viewer vnc://localhost:5901` (Wayland native, so it can take the
+# compositor shortcuts; Ctrl+Alt releases the keyboard). Run it on any host with KVM and OVMF.
+
+set -euo pipefail
+
+REPO_URL=http://192.168.2.50
+OVMF=/usr/share/edk2/x64
+DIR=${XDG_CACHE_HOME:-$HOME/.cache}/iso-test # not /tmp: the installed disk takes ~10 GB
+
+mkdir -p "$DIR"
+cd "$DIR"
+
+case ${1:-iso} in
+iso)
+	iso=$(curl -sf "$REPO_URL/iso/sha256sums.txt" | awk '{ print $2 }')
+	[[ -f $iso ]] || curl -fo "$iso" "$REPO_URL/iso/$iso"
+	curl -sf "$REPO_URL/iso/sha256sums.txt" | sha256sum -c
+	rm -f disk.qcow2 vars.fd
+	boot=(-cdrom "$iso" -boot d)
+	;;
+disk) boot=() ;;
+clean)
+	rm -rf "$DIR"
+	exit
+	;;
+*)
+	echo "Usage: test-vm [iso|disk|clean]" >&2
+	exit 1
+	;;
+esac
+
+[[ -f disk.qcow2 ]] || qemu-img create -f qcow2 disk.qcow2 40G
+[[ -f vars.fd ]] || cp $OVMF/OVMF_VARS.4m.fd vars.fd
+
+echo "VNC on localhost:5901 (remote-viewer vnc://localhost:5901). Stop it with poweroff in the VM."
+exec qemu-system-x86_64 -enable-kvm -machine q35 -cpu host -smp 4 -m 4G \
+	-drive if=pflash,format=raw,readonly=on,file=$OVMF/OVMF_CODE.4m.fd \
+	-drive if=pflash,format=raw,file=vars.fd \
+	-drive file=disk.qcow2,if=none,id=d0 -device nvme,drive=d0,serial=test \
+	-nic user,model=virtio-net-pci -vga virtio -vnc localhost:1 \
+	"${boot[@]}"

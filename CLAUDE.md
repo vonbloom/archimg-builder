@@ -10,7 +10,7 @@ comments and commit messages are in English (short, sentence-style subjects).
 ```
 image/    arkdep image recipes (arkdep-build.d/) and build, prune, notify-image
 aur/      AUR packages (packages.list) built into the [aur] repository
-iso/      installer ISO: Arch releng profile + arkdep + airootfs/root/install.sh
+iso/      installer ISO: Arch releng profile + arkdep + airootfs/root/install.sh; test-vm
 serve/    nginx quadlet serving /mnt/repo: /<recipe>/, /aur/, /iso/
 systemd/  build-image@.{service,timer}, build-aur.{service,timer}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days)
@@ -21,6 +21,9 @@ All builds run on the server `192.168.2.50` (Debian, rootful podman via `sudo`, 
 `/home/admin/distro-builder`), never on the laptops. `/mnt/repo` there is NFS from zeus
 (`192.168.2.10`). A failed build triggers `notify-failure@` (Home Assistant push); both
 `notify-ha` and that unit come from the homelab repo (role `notify_ha`).
+
+User-facing documentation (setup, usage of each tool, installer steps) is in `README.md`: keep
+it in sync when changing behaviour.
 
 ## System overview
 
@@ -126,6 +129,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `arkdep deploy <recipe>`, systemd-boot, user `roger` and fstab in the new deployment.
 - `iso/airootfs/root/arkdep.config` is the canonical `/arkdep/config` for new installs: keep it in
   sync with the laptops' `/arkdep/config` (`repo_url`, `deploy_keep`, `migrate_files`).
+- `iso/test-vm iso|disk|clean` boots the published ISO or the installed disk in a throwaway
+  QEMU/OVMF VM (VNC `localhost:5901`; on sway use `remote-viewer`, which can inhibit the
+  compositor shortcuts, not TigerVNC).
 - Group lines for the user are taken from the image's `/usr/lib/group`, so the GIDs always match
   the image (copying them from another system breaks dynamic GIDs such as `libvirt`).
 
