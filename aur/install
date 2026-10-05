@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Install and enable the daily build timer (run as root on the build server)
-
-cd "$(dirname "$(readlink -f "$0")")"
-
-ln -sf "$(pwd)"/systemd/aur-builder.service "$(pwd)"/systemd/aur-builder.timer /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now aur-builder.timer

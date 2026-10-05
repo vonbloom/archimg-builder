@@ -8,9 +8,8 @@ OnFailure=notify-failure@%n.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/admin/archimg-builder
 # Builds of different recipes are started together by their timers: run them one at a time
-ExecStart=/usr/bin/flock /run/archimg-build.lock /home/admin/archimg-builder/build %i
-ExecStartPost=/home/admin/archimg-builder/prune %i
-ExecStartPost=/home/admin/archimg-builder/notify-image %i
+ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/image/build %i
+ExecStartPost=/home/admin/distro-builder/image/prune %i
+ExecStartPost=/home/admin/distro-builder/image/notify-image %i
 TimeoutStartSec=6h

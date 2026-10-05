@@ -33,4 +33,4 @@ if [[ -n ${lists[1]:-} ]]; then
 	fi
 fi
 
-NOTIFY_STATUS=$status /usr/local/sbin/notify-ha "$title" "$message" "archimg-$RECIPE"
+NOTIFY_STATUS=$status /usr/local/sbin/notify-ha "$title" "$message" "image-$RECIPE"

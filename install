@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Install the weekly build units and enable a timer per recipe (run as root on the build server)
-# Usage: install [recipe...]   (default: p14s t480)
+# Install the build units and the repository web service, and enable the timers (run as root on
+# the build server). Usage: install [recipe...]   (image recipes to schedule, default: p14s t480)
+
+set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 
 RECIPES=("$@")
 [[ $# -eq 0 ]] && RECIPES=(p14s t480)
 
-ln -sf "$(pwd)"/systemd/archimg-build@.service "$(pwd)"/systemd/archimg-build@.timer /etc/systemd/system/
+ln -sf "$(pwd)"/systemd/build-{image@,aur}.{service,timer} /etc/systemd/system/
+ln -sf "$(pwd)"/serve/distro-repo.container /etc/containers/systemd/
 systemctl daemon-reload
+
+systemctl enable --now build-aur.timer
 for recipe in "${RECIPES[@]}"; do
-	systemctl enable --now "archimg-build@$recipe.timer"
+	systemctl enable --now "build-image@$recipe.timer"
 done
+systemctl restart distro-repo.service

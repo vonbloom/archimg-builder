@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Usage: build [--rebuild-builder] <recipe>
+
+set -euo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")"
+source ../lib/builder.sh
+
+REBUILD=0
+[[ ${1:-} == --rebuild-builder ]] && REBUILD=1 && shift
+
+[[ -z ${1:-} ]] && echo "A recipe must be specified" && exit 1
+[[ $# -gt 1 ]] && echo "Only one argument allowed" && exit 1
+
+RECIPE="$1"
+REPO_PATH="/mnt/repo/$RECIPE"
+BUILDER_IMAGE=arkdep-builder
+
+[[ ! -d $REPO_PATH ]] && mkdir "$REPO_PATH"
+
+ensure_builder "$BUILDER_IMAGE" . "$REBUILD"
+echo "Builder: $(podman run --rm --entrypoint pacman "$BUILDER_IMAGE" -Q arkdep)"
+
+# Build recipe image
+podman run \
+	--privileged --rm \
+	-v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
+	-v "$REPO_PATH":/root/target:Z \
+	"$BUILDER_IMAGE" "$RECIPE"

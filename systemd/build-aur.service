@@ -8,5 +8,5 @@ OnFailure=notify-failure@%n.service
 
 [Service]
 Type=oneshot
-ExecStart=/home/admin/aur-builder/build
+ExecStart=/home/admin/distro-builder/aur/build
 TimeoutStartSec=3h

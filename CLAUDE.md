@@ -1,8 +1,26 @@
-# archimg-builder
+# distro-builder
 
-Recipes and tooling to build immutable [arkdep](https://github.com/arkanelinux/arkdep) images of a
-CachyOS/Arch-based personal distro. The user speaks Catalan; code, comments and commit messages are
-in English (short, sentence-style subjects).
+Everything that builds and distributes a CachyOS/Arch-based personal distro on
+[arkdep](https://github.com/arkanelinux/arkdep): the immutable host images, the `[aur]` package
+repository used by the `userland` distrobox, and the installer ISO. The user speaks Catalan; code,
+comments and commit messages are in English (short, sentence-style subjects).
+
+## Layout
+
+```
+image/    arkdep image recipes (arkdep-build.d/) and build, prune, notify-image
+aur/      AUR packages (packages.list) built into the [aur] repository
+iso/      installer ISO: Arch releng profile + arkdep + airootfs/root/install.sh
+serve/    nginx quadlet serving /mnt/repo: /<recipe>/, /aur/, /iso/
+systemd/  build-image@.{service,timer}, build-aur.{service,timer}
+lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days)
+install   links the units and the quadlet, enables the timers (run as root on the server)
+```
+
+All builds run on the server `192.168.2.50` (Debian, rootful podman via `sudo`, checkout
+`/home/admin/distro-builder`), never on the laptops. `/mnt/repo` there is NFS from zeus
+(`192.168.2.10`). A failed build triggers `notify-failure@` (Home Assistant push); both
+`notify-ha` and that unit come from the homelab repo (role `notify_ha`).
 
 ## System overview
 
@@ -20,27 +38,24 @@ in English (short, sentence-style subjects).
 - **Users**: `arkdep-build` moves non-root accounts to `/usr/lib/{passwd,group,shadow}`, read through
   `nss-altfiles` (`altfiles` in `nsswitch.conf`). Do not remove either or system users disappear.
 
-## Build and publish
+## Images (`image/`)
 
-- Builds run on the server `192.168.2.50` (checkout at `/home/admin/archimg-builder`), not on the
-  laptops: `./build <recipe>` builds the `arkdep-builder` podman image (when missing or older than 7 days, arkdep from
-  `arkanelinux/pkgbuild`) and runs `arkdep-build.sh` inside it, writing to `/mnt/repo/<recipe>`.
-- Scheduled builds: `install` (as root) links `systemd/archimg-build@.{service,timer}` into
-  `/etc/systemd/system` and enables `archimg-build@<recipe>.timer` for p14s and t480 (Sunday 08:00
-  Europe/Madrid, `Persistent=true`). Builds run one at a time (`flock /run/archimg-build.lock`).
-  After a successful build, `prune <recipe>` thins out old images (keep the newest 4 plus the newest
-  of each of the 3 previous months; `prune --dry-run <recipe>` shows the plan) and `notify-image`
-  sends "New image ..." with the package changes to Home Assistant. A failed build triggers
-  `notify-failure@` (both `notify-ha` and that unit come from the homelab repo, role `notify_ha`).
-  Logs: `journalctl -u archimg-build@<recipe>`.
-- `serve` installs the `arkdep-repo.container` quadlet: nginx serves `/mnt/repo` at
+- `image/build [--rebuild-builder] <recipe>` builds the `arkdep-builder` podman image (when missing
+  or older than 7 days; arkdep from `arkanelinux/pkgbuild`) and runs `arkdep-build.sh` inside it,
+  writing to `/mnt/repo/<recipe>`.
+- Scheduled builds: `build-image@<recipe>.timer` for p14s and t480 (Sunday 08:00 Europe/Madrid,
+  `Persistent=true`). Builds run one at a time (`flock /run/build-image.lock`). After a successful
+  build, `prune <recipe>` thins out old images (keep the newest 4 plus the newest of each of the 3
+  previous months; `prune --dry-run <recipe>` shows the plan) and `notify-image` sends "New image
+  ..." with the package changes to Home Assistant. Logs: `journalctl -u build-image@<recipe>`.
+- `serve/distro-repo.container` (nginx quadlet) serves `/mnt/repo` at
   `http://192.168.2.50/<recipe>/` (`database` file + `<name>.tar.zst`).
 - An image `.tar.zst` contains btrfs send streams (`<name>-rootfs.img`, `-etc.img`, `-var.img`) and
   `<name>-update.sh`. Inspect without root:
   `curl -s URL | zstd -dc | tar -xOf - ./<name>-rootfs.img | btrfs receive --dump`
   (paths appear as `rename ... dest=./rootfs/<path>`).
 
-## Recipe layout (`arkdep-build.d/`)
+## Recipe layout (`image/arkdep-build.d/`)
 
 ```
 common/           pacman.conf, mirrorlist, extensions/{pre_build,post_install}.sh
@@ -65,10 +80,59 @@ How `arkdep-build` processes a recipe (relevant constraints):
   depends overlay overwrites a device file with the same path. Use drop-in files instead.
 - `post_install.sh` runs `systemctl preset-all` and `locale-gen`, before subvolumes become read-only.
 
-## Gotchas learned the hard way
+## AUR repository (`aur/`)
 
-- **Builder image age**: `build` rebuilds `arkdep-builder` (`--pull=always --no-cache`) when it is
-  older than `BUILDER_MAX_AGE_DAYS` (7) or with `./build --rebuild-builder <recipe>`, and prints the
+- Builds the AUR packages in `aur/packages.list` in a throwaway podman container and publishes them
+  as the pacman repository `[aur]` at `http://192.168.2.50/aur/` (`/mnt/repo/aur`), unsigned
+  (`SigLevel = Optional TrustAll` on clients). Client: the `userland` distrobox
+  (`~/.dotfiles/distrobox/.config/distrobox/pre_init_distrobox_assemble.sh`).
+- `build-aur.timer`: daily 04:00 UTC + up to 30 min random delay, `Persistent=true`. Logs:
+  `journalctl -u build-aur`. Manual run: `sudo systemctl start build-aur` or `sudo aur/build`.
+- `aur/build [--rebuild-builder] [repo_path]` rebuilds the `aur-builder` image when missing, older
+  than 7 days or requested, then runs `aur-build.sh` in it. A local test run works rootless on any
+  host: `aur/build /some/tmp/dir`.
+
+### aur-build.sh
+
+- `pacman -Syu` on every run, so an image a few days old never builds against stale libraries
+  (the failure mode of the old LXC builder).
+- `aur sync --no-view --noconfirm --auto-key-retrieve <list>`: builds new and outdated targets and
+  their AUR dependencies, skips up-to-date ones. AUR PKGBUILD changes are not reviewed.
+- Packages no longer listed nor needed as AUR dependencies (`aur depends`) are `repo-remove`d and
+  their files deleted; `paccache -rk2` keeps the last two versions of each package.
+- `makepkg.conf` (`/etc/makepkg.conf.d/`) disables `-debug` packages.
+- A failure in any step stops the run (the unit fails); packages built before it stay published.
+
+### Gotchas
+
+- `aur-repo-filter` reads `/dev/tty` unless `unbuffer` (package `expect`) is installed; without a
+  terminal (systemd) the check for official packages providing an AUR target silently fails.
+- `aur depends` default output is dependency pairs; use `--jsonl` + `aur format -f '%n\n'` for names.
+- "Failed to connect to udev via varlink" / "command failed to execute correctly" while installing
+  dependencies is the udev pacman hook inside the container: harmless.
+
+## Installer ISO (`iso/`)
+
+- `sudo iso/build [output_dir]` builds `iso-builder` (from `arkdep-builder`, which already trusts
+  the arkane key, plus `archiso`) and runs `mkarchiso` on Arch's `releng` profile with `arkdep`
+  (from `[arkane]`) added and `iso/airootfs/` copied over. The ISO goes to `/mnt/repo/iso/`
+  (`http://192.168.2.50/iso/`, with `sha256sums.txt`); older ISOs are deleted. No timer: rebuild
+  it when the installer changes or the live system gets too old.
+- The ISO contains no image: `/root/install.sh` deploys the newest image of a recipe straight from
+  the repository, so it needs the LAN (Wi-Fi through `iwctl` if there is no cable), not the
+  internet. Steps: recipe (from the DMI model: `20Y1` p14s, `20L5`/`20L6` t480, otherwise a menu of
+  the recipes in the repo index), disk, password, then GPT with a 1G ESP (`EFI`) and btrfs `ROOT`,
+  `/swap/swapfile` sized to RAM (hibernation `resume=` options), `ARKDEP_ROOT=/mnt arkdep init` +
+  `arkdep deploy <recipe>`, systemd-boot, user `roger` and fstab in the new deployment.
+- `iso/airootfs/root/arkdep.config` is the canonical `/arkdep/config` for new installs: keep it in
+  sync with the laptops' `/arkdep/config` (`repo_url`, `deploy_keep`, `migrate_files`).
+- Group lines for the user are taken from the image's `/usr/lib/group`, so the GIDs always match
+  the image (copying them from another system breaks dynamic GIDs such as `libvirt`).
+
+## Gotchas learned the hard way (images)
+
+- **Builder image age**: `image/build` rebuilds `arkdep-builder` (`--pull=always --no-cache`) when it is
+  older than `BUILDER_MAX_AGE_DAYS` (7) or with `image/build --rebuild-builder <recipe>`, and prints the
   arkdep version used (`Builder: arkdep <version>`). When debugging, read the code of that version,
   not upstream HEAD: a builder from 2026-02 had arkdep without the package.list fix below.
 - **Every device recipe needs a `package.list`** (a comment is enough): arkdep-build releases before
@@ -100,7 +164,7 @@ How `arkdep-build` processes a recipe (relevant constraints):
 ## Verifying changes without building
 
 - Resolve every package of a recipe against fresh repo databases (use bash; zsh does not word-split):
-  `fakeroot pacman -Sy --dbpath <tmp> --config common/pacman.conf`, then
-  `pacman -Sp --dbpath <tmp> --config common/pacman.conf <pkgs>`.
+  `fakeroot pacman -Sy --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf`, then
+  `pacman -Sp --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf <pkgs>`.
 - The host's own sync databases come from the image build and are stale.
 - Hardware info of other machines: `ssh roger@192.168.2.98` (T480, currently Artix, not arkdep yet).
