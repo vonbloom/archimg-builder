@@ -88,6 +88,7 @@ button:hover {
 #pulseaudio,
 #wireplumber,
 #custom-media,
+#custom-arkdep,
 #tray,
 #mode,
 #idle_inhibitor,
@@ -230,8 +231,14 @@ label:focus {
     /* background-color: #f0932b; */
 }
 
+#temperature.warning {
+    color: #f0932b;
+}
+
+/* Waybar keeps the warning class while critical: reset the text colour */
 #temperature.critical {
     background-color: #eb4d4b;
+    color: #ffffff;
 }
 
 #tray {
@@ -324,4 +331,12 @@ label:focus {
 
 #privacy-item.audio-out {
     background-color: #0069d4;
+}
+
+#custom-arkdep.available {
+    background-color: #0069d4;
+}
+
+#custom-arkdep.reboot {
+    background-color: #cf5700;
 }

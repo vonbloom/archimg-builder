@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Menu of the waybar custom/power module: each id is a key of its "menu-actions" -->
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="suspend">
+        <property name="label">Suspèn</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="hibernate">
+        <property name="label">Hiberna</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="separator"/>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="reboot">
+        <property name="label">Reinicia</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="poweroff">
+        <property name="label">Apaga</property>
+      </object>
+    </child>
+  </object>
+</interface>

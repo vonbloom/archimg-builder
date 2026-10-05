@@ -144,6 +144,11 @@ sudo arkdep deploy        # newest image of the default recipe; reboot into it
 arkdep-diff               # after rebooting: package changes against the previous deployment
 ```
 
+The waybar module `custom/arkdep` (script `arkdep-update-status`, in the sway layer) checks the
+repository every hour: it shows 󰏔 and the number of new or updated packages when a newer image
+is available (click it to deploy in a terminal), 󰜉 when the newest image is deployed but not
+booted yet, and nothing when the system is up to date or the server is unreachable.
+
 ## AUR repository (`aur/`)
 
 Prebuilt AUR packages for the `userland` distrobox, published as the pacman repository `[aur]`.

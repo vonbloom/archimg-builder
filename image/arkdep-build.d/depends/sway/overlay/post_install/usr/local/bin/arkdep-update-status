@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Waybar module custom/arkdep: is there a newer image in the arkdep repository than the running one?
+# Usage: arkdep-update-status          print the module state as waybar JSON ("exec")
+#        arkdep-update-status deploy   deploy the newest image in a terminal ("on-click")
+# The module is hidden when the system is up to date or the repository is unreachable (away from
+# home). Waybar refreshes it every hour and on SIGRTMIN+8 (sent after a deploy).
+
+set -uo pipefail
+
+SIGNAL=8
+
+if [[ ${1:-} == deploy ]]; then
+	exec foot --title "arkdep deploy" sh -c \
+		"sudo arkdep deploy; pkill -RTMIN+$SIGNAL waybar; printf '\nPress Enter to close'; read -r _"
+fi
+
+json() {
+	printf '{"text": "%s", "class": "%s", "tooltip": "%s"}\n' "$1" "$2" "$3"
+}
+
+repo_url='' repo_default_image=''
+eval "$(grep -E '^(repo_url|repo_default_image)=' /arkdep/config)"
+running=$(grep -o 'deployments/[^/ ]*/rootfs' /proc/cmdline | cut -d/ -f2)
+latest=$(curl -sf --max-time 10 "$repo_url/$repo_default_image/database" | head -1 | cut -d: -f1)
+
+# Image names end in the build date, so they sort chronologically
+if [[ -z $latest || ! $latest > $running ]]; then
+	json "" "" ""
+elif [[ -d /arkdep/deployments/$latest ]]; then
+	json "󰜉" reboot "$latest is deployed: reboot to start it."
+else
+	changes=$(curl -sf --max-time 10 "$repo_url/$repo_default_image/$latest.pkgs" | awk '
+		NR == FNR { installed[$1] = $2; next }
+		!($1 in installed) || installed[$1] != $2 { n++ }
+		END { print n + 0 }' <(pacman -Q) -)
+	json "󰏔 $changes" available "New image $latest (running $running), $changes packages new or updated.\nClick to deploy it."
+fi

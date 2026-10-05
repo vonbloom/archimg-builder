@@ -10,12 +10,14 @@
         "sway/workspaces",
         "sway/mode",
         "sway/scratchpad",
-        "custom/media"
-    ],
-    "modules-center": [
+        "custom/media",
         "sway/window"
     ],
+    "modules-center": [
+        "clock"
+    ],
     "modules-right": [
+        "custom/arkdep",
         "mpd",
         // "idle_inhibitor",
         "pulseaudio",
@@ -29,7 +31,6 @@
         // "sway/language",
         "battery",
         // "battery#bat2",
-        "clock",
         "tray",
         "custom/power"
     ],
@@ -125,10 +126,13 @@
     "temperature": {
         // "thermal-zone": 2,
         // "hwmon-path": "/sys/class/hwmon/hwmon2/temp1_input",
-        "critical-threshold": 80,
+        // Ryzen/Intel mobile CPUs reach 80-90 °C in short boost bursts (Tjmax 100-105 °C): warn in
+        // orange text from 85 °C and only turn red when close to throttling
+        "warning-threshold": 85,
+        "critical-threshold": 95,
         // "format-critical": "{temperatureC}°C {icon}",
         "format": "{temperatureC}°C {icon}",
-        "format-icons": ["", "", ""]
+        "format-icons": ["󱃃", "󰔏", "󱃂"]
     },
     "backlight": {
         // "device": "acpi_video1",
@@ -143,7 +147,7 @@
         },
         "format": "{capacity}% {icon}",
         "format-full": "{capacity}% {icon}",
-        "format-charging": "{capacity}% ",
+        "format-charging": "{capacity}% 󰂄",
         "format-plugged": "{capacity}% ",
         "format-alt": "{time} {icon}",
         // "format-good": "", // An empty format will hide the module
@@ -177,14 +181,14 @@
         // "scroll-step": 1, // %, can be a float
         "format": "{volume}% {icon}  {format_source}",
         "format-bluetooth": "{volume}% {icon} {format_source}",
-        "format-bluetooth-muted": " {icon} {format_source}",
-        "format-muted": " {format_source}",
+        "format-bluetooth-muted": "󰝟 {icon} {format_source}",
+        "format-muted": "󰝟 {format_source}",
         "format-source": "{volume}% ",
         "format-source-muted": "",
         "format-icons": {
             "headphone": "",
-            "hands-free": "",
-            "headset": "",
+            "hands-free": "󰋎",
+            "headset": "󰋎",
             "phone": "",
             "portable": "",
             "car": "",
@@ -198,22 +202,30 @@
         "max-length": 40,
         "format-icons": {
             "spotify": "",
-            "default": "🎜"
+            "default": "󰎇"
         },
         "escape": true,
         "exec": "$HOME/.config/waybar/mediaplayer.py 2> /dev/null" // Script in resources folder
         // "exec": "$HOME/.config/waybar/mediaplayer.py --player spotify 2> /dev/null" // Filter player based on name
     },
+    "custom/arkdep": {
+        // Newer arkdep image in the repository (hidden when up to date or away from home)
+        "exec": "arkdep-update-status",
+        "return-type": "json",
+        "interval": 3600,
+        "signal": 8,
+        "on-click": "arkdep-update-status deploy"
+    },
     "custom/power": {
-        "format" : "⏻ ",
-		"tooltip": false,
-		"menu": "on-click",
-		"menu-file": "$HOME/.config/waybar/power_menu.xml", // Menu file in resources folder
-		"menu-actions": {
-			"shutdown": "shutdown",
-			"reboot": "reboot",
-			"suspend": "systemctl suspend",
-			"hibernate": "systemctl hibernate"
-		}
+        "format": "⏻ ",
+        "tooltip": false,
+        "menu": "on-click",
+        "menu-file": "/etc/xdg/waybar/power_menu.xml",
+        "menu-actions": {
+            "suspend": "systemctl suspend",
+            "hibernate": "systemctl hibernate",
+            "reboot": "systemctl reboot",
+            "poweroff": "systemctl poweroff"
+        }
     }
 }
