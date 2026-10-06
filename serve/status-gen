@@ -33,6 +33,11 @@ UNIT_PROPS = [
     "InactiveEnterTimestamp",
 ]
 TIMER_PROPS = ["NextElapseUSecRealtime", "LastTriggerUSec"]
+# Journal messages of PID 1 about a unit's jobs (catalog IDs)
+MSG_STARTING = "7d4958e842da4a758f6c1cdc7b36dcc5"
+MSG_JOB_DONE = "39f53479d3a045ac8e11786248231fbf"
+MSG_JOB_FAILED = "be02cf6855d2428ba40df7e9d022f03d"
+MSG_UNIT_FAILED = "d9b373ed55a64feb8242e02dbe79a49c"
 
 
 def run(cmd):
@@ -80,16 +85,41 @@ def build_units():
     return units + ["build-iso.service"], {u: t for u, t in zip(units, timers)}
 
 
+def last_run_from_journal(unit):
+    """(started, finished, result) of the last run, from the journal: systemd forgets the
+    timestamps of inactive units on reboot, the (persistent) journal does not."""
+    started = finished = result = None
+    for line in run(["journalctl", f"UNIT={unit}", "_PID=1", "-o", "json", "-n", "200",
+                     "--no-pager"]).splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        ts = int(entry.get("__REALTIME_TIMESTAMP", 0)) // 1_000_000
+        msg = entry.get("MESSAGE_ID")
+        if msg == MSG_STARTING:
+            started, finished, result = ts, None, None
+        elif msg in (MSG_JOB_DONE, MSG_JOB_FAILED) and started:
+            finished = ts
+            result = result or ("success" if entry.get("JOB_RESULT") == "done" else entry.get("JOB_RESULT"))
+        elif msg == MSG_UNIT_FAILED and started:
+            result = entry.get("UNIT_RESULT")
+    return started, finished, result
+
+
 def unit_status(unit, timer, now):
     p = show(unit, UNIT_PROPS)
     if p.get("LoadState") not in ("loaded",):
         return None
     started = epoch(p.get("InactiveExitTimestamp"))
     finished = epoch(p.get("InactiveEnterTimestamp"))
+    result = p.get("Result")
     active = p.get("ActiveState")
+    if not started and active == "inactive":  # not run since boot: look further back
+        started, finished, result = last_run_from_journal(unit)
     if active in ("activating", "active", "reloading", "deactivating"):
         state, finished = "running", None
-    elif active == "failed" or (started and p.get("Result") not in ("success", None)):
+    elif active == "failed" or (started and result not in ("success", None)):
         state = "failed"
     elif started:
         state = "ok"
@@ -108,7 +138,7 @@ def unit_status(unit, timer, now):
         "target": target,
         "description": p.get("Description", ""),
         "state": state,
-        "result": p.get("Result"),
+        "result": result,
         "started": started,
         "finished": finished,
         "duration": duration,
