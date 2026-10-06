@@ -24,8 +24,9 @@ podman run --rm --replace --name build-aur \
 	-v "$REPO_PATH":/repo:Z \
 	"$BUILDER_IMAGE"
 
-# Sign outside the container, which never sees the key: new packages, and the database, which
-# changes on every run (aur.db is a symlink to aur.db.tar.zst, pacman fetches aur.db.sig)
+# Sign outside the container, which never sees the key: new packages, and the databases, which
+# change on every run (aur.db and aur.files, for pacman -F, are symlinks to the .tar.zst files;
+# pacman fetches aur.db.sig and aur.files.sig)
 if can_sign; then
 	(
 		cd "$REPO_PATH"
@@ -34,7 +35,7 @@ if can_sign; then
 			[[ -e ${sig%.sig} ]] || rm -v "$sig" # package removed by aur-build.sh or paccache
 		done
 		sign_missing ./*.pkg.tar.zst
-		for db in *.db.tar.zst; do
+		for db in *.db.tar.zst *.files.tar.zst; do
 			sign "$db"
 			ln -sf "$db.sig" "${db%.tar.zst}.sig"
 		done
