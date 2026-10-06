@@ -16,7 +16,9 @@ serve/    nginx quadlet serving /mnt/repo (/<recipe>/, /aur/, /iso/) and the sta
           build-trigger starts builds: POST /api/build/<unit>, polkit rule distro-trigger.rules)
 systemd/  build-image@.{service,timer}, build-aur.{service,timer}, build-iso.service,
           distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
-lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days)
+lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
+          sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg)
+keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also
           podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
 ```
@@ -91,8 +93,8 @@ How `arkdep-build` processes a recipe (relevant constraints):
 ## AUR repository (`aur/`)
 
 - Builds the AUR packages in `aur/packages.list` in a throwaway podman container and publishes them
-  as the pacman repository `[aur]` at `http://192.168.2.50/aur/` (`/mnt/repo/aur`), unsigned
-  (`SigLevel = Optional TrustAll` on clients). Client: the `userland` distrobox
+  as the pacman repository `[aur]` at `http://192.168.2.50/aur/` (`/mnt/repo/aur`), signed by
+  `aur/build` after the container (packages and `aur.db`). Client: the `userland` distrobox
   (`~/.dotfiles/distrobox/.config/distrobox/pre_init_distrobox_assemble.sh`).
 - `build-aur.timer`: daily 04:00 UTC + up to 30 min random delay, `Persistent=true`. Logs:
   `journalctl -u build-aur`. Manual run: `sudo systemctl start build-aur` or `sudo aur/build`.
@@ -124,7 +126,7 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `sudo iso/build [output_dir]` builds `iso-builder` (from `arkdep-builder`, which already trusts
   the arkane key, plus `archiso`) and runs `mkarchiso` on Arch's `releng` profile with `arkdep`
   (from `[arkane]`) added and `iso/airootfs/` copied over. The ISO goes to `/mnt/repo/iso/`
-  (`http://192.168.2.50/iso/`, with `sha256sums.txt`); older ISOs are deleted. Run through
+  (`http://192.168.2.50/iso/`, with `sha256sums.txt` and its signature); older ISOs are deleted. Run through
   `build-iso.service` (pull + `flock /run/build-image.lock`). No timer: rebuild it when the
   installer changes or the live system gets too old.
 - The ISO contains no image: `/root/install.sh` deploys the newest image of a recipe straight from
@@ -194,6 +196,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
   `user.conf.d/50-stop-timeout.conf` caps any user unit or scope at 15 s.
+- **Signatures**: images, `[aur]` and ISO checksums are signed outside the builder containers
+  (`lib/sign.sh`; the key never enters a container, which runs unreviewed AUR code). Anything
+  that deletes published files must delete their `.sig` too (`prune`, `aur/build` cleans orphan
+  package signatures). The installer copies `keys/distro-builder.asc` (built into the ISO through
+  `--build-context keys=../keys`) to `/arkdep/keys/trusted-keys`.
 - **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
   (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
   `fc-list ":charset=<hex>"`.

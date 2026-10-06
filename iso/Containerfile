@@ -12,5 +12,7 @@ RUN cp -r /usr/share/archiso/configs/releng profile && \
     sed -i 's/^iso_name=.*/iso_name="distro-installer"/' profile/profiledef.sh && \
     sed -i '/^file_permissions=(/a\  ["/root/install.sh"]="0:0:755"' profile/profiledef.sh
 COPY airootfs/ profile/airootfs/
+# Public key of the build server: install.sh makes arkdep verify the images with it
+COPY --from=keys distro-builder.asc profile/airootfs/root/distro-builder.asc
 
 ENTRYPOINT ["mkarchiso", "-v", "-w", "/tmp/archiso-tmp", "-o", "/output", "/build/profile"]

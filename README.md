@@ -69,11 +69,29 @@ service, rolling back if it does not start):
 
 ```
 /mnt/repo/
-├── p14s/   database, p14s-YYYY-MM-DD.tar.zst, p14s-YYYY-MM-DD.pkgs
+├── p14s/   database, p14s-YYYY-MM-DD.tar.zst(.sig), p14s-YYYY-MM-DD.pkgs
 ├── t480/   ...
-├── aur/    aur.db, *.pkg.tar.zst
-└── iso/    distro-installer-YYYY.MM.DD-x86_64.iso, sha256sums.txt
+├── aur/    aur.db(.sig), *.pkg.tar.zst(.sig)
+└── iso/    distro-installer-YYYY.MM.DD-x86_64.iso, sha256sums.txt(.sig)
 ```
+
+### Signatures
+
+Everything published is signed with the build server's key (ed25519,
+`CF47 1E66 8597 4BF4 3EA1  1362 3F9E BD77 B1E6 0E55`, public part in `keys/distro-builder.asc`):
+images (`<image>.tar.zst.sig`), the `[aur]` packages and database, and the ISO checksums. The
+build scripts sign after their container has finished (`lib/sign.sh`), so the containers, which
+run unreviewed AUR code, never see the key. It lives only in `/etc/distro-builder/gnupg` (root,
+mode 700) on the server, backed up in the homelab vault, from which the "Build server" play
+restores it. Without the key (a local test run) nothing is signed and the scripts say so.
+
+Clients get the public key from this repository, not from the server they verify:
+
+- laptops: `/arkdep/keys/trusted-keys`, which arkdep checks every image against with `gpgv`
+  (`gpg_signature_check` in `/arkdep/config`: `1` verifies when a signature exists, `2` refuses
+  unsigned images). The installer sets it up; on an existing machine:
+  `sudo sh -c 'gpg --dearmor < keys/distro-builder.asc > /arkdep/keys/trusted-keys'`;
+- the `[aur]` clients: `pacman-key --add` + `--lsign-key` (see below).
 
 ### Status page
 
@@ -199,12 +217,18 @@ Prebuilt AUR packages for the `userland` distrobox, published as the pacman repo
   follow it with `journalctl -fu build-aur`.
 - PKGBUILD changes are not reviewed: only list packages you trust.
 
-The repository is unsigned. Clients add it after Arch's repositories (the dotfiles repo does this
-for the distroboxes, in `pre_init_distrobox_assemble.sh`):
+Packages and database are signed ([Signatures](#signatures)). Clients trust the key and add the
+repository after Arch's repositories (the dotfiles repo does this for the distroboxes, in
+`pre_init_distrobox_assemble.sh`):
+
+```sh
+pacman-key --add keys/distro-builder.asc
+pacman-key --lsign-key CF471E6685974BF43EA113623F9EBD77B1E60E55
+```
 
 ```ini
 [aur]
-SigLevel = Optional TrustAll
+SigLevel = Required
 Server = http://192.168.2.50/aur
 ```
 
@@ -230,8 +254,11 @@ when the installer changes or when the live system is too old for new hardware.
 
 ### Installing a machine
 
-1. Download the ISO from `http://192.168.2.50/iso/`, check it against `sha256sums.txt` and write
-   it to a USB stick (`dd if=distro-installer-*.iso of=/dev/sdX bs=4M oflag=sync`).
+1. Download the ISO, `sha256sums.txt` and `sha256sums.txt.sig` from `http://192.168.2.50/iso/`,
+   check them (`gpgv --keyring <(gpg --dearmor < keys/distro-builder.asc) sha256sums.txt.sig
+   sha256sums.txt && sha256sum -c sha256sums.txt`) and write the ISO to a USB stick
+   (`dd if=distro-installer-*.iso of=/dev/sdX bs=4M oflag=sync`). The installed system verifies
+   every image with the same key.
 2. Boot it in UEFI mode (Secure Boot off) and run `/root/install.sh`.
 3. Answer the questions:
    - **Network**: if the server is not reachable, the Wi-Fi networks are listed; type the SSID and

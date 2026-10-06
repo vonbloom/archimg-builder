@@ -6,12 +6,14 @@ set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 source ../lib/builder.sh
+source ../lib/sign.sh
 
 OUTPUT=${1:-/mnt/repo/iso}
 
 # The ISO builder derives from arkdep-builder; it is cheap, so it is rebuilt every time
 ensure_builder arkdep-builder ../image 0
-podman build --pull=never --no-cache --rm -t iso-builder .
+# keys/: the public signing key, copied into the live system for install.sh
+podman build --pull=never --no-cache --rm --build-context keys=../keys -t iso-builder .
 
 mkdir -p "$OUTPUT/.new"
 # Named after the unit (its log lines carry the name); --replace removes a leftover of a killed run
@@ -20,4 +22,6 @@ rm -f "$OUTPUT"/*.iso
 mv "$OUTPUT"/.new/*.iso "$OUTPUT"/
 rmdir "$OUTPUT/.new"
 cd "$OUTPUT" && sha256sum -- *.iso >sha256sums.txt
+# Signed checksums: verify a downloaded ISO with keys/distro-builder.asc (see README)
+if can_sign; then sign sha256sums.txt; else echo "No signing key: checksums not signed" >&2; fi
 podman image prune -f

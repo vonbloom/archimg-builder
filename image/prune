@@ -31,7 +31,7 @@ for img in "${images[@]}"; do
 		echo "delete $img"
 		if ((!DRY_RUN)); then
 			sed -i "/^$img:/d" "$REPO_PATH/database"
-			rm -f "$REPO_PATH/$img.tar.zst" "$REPO_PATH/$img.pkgs"
+			rm -f "$REPO_PATH/$img.tar.zst" "$REPO_PATH/$img.tar.zst.sig" "$REPO_PATH/$img.pkgs"
 		fi
 	fi
 done

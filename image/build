@@ -5,6 +5,7 @@ set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 source ../lib/builder.sh
+source ../lib/sign.sh
 
 REBUILD=0
 [[ ${1:-} == --rebuild-builder ]] && REBUILD=1 && shift
@@ -28,3 +29,10 @@ podman run \
 	-v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
 	-v "$REPO_PATH":/root/target:Z \
 	"$BUILDER_IMAGE" "$RECIPE"
+
+# Sign the new image (arkdep checks <image>.tar.zst.sig), and any older one still unsigned
+if can_sign; then
+	sign_missing "$REPO_PATH"/*.tar.zst
+else
+	echo "No signing key ($SIGN_GNUPGHOME): images not signed" >&2
+fi

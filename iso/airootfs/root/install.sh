@@ -101,6 +101,8 @@ resume_opts+=" resume_offset=$(btrfs inspect-internal map-swapfile -r $MNT/swap/
 export ARKDEP_ROOT=$MNT
 arkdep init
 cp /root/arkdep.config $MNT/arkdep/config
+# Images are signed by the build server: arkdep verifies them with its key (gpg_signature_check)
+gpg --dearmor </root/distro-builder.asc >$MNT/arkdep/keys/trusted-keys
 sed -i "s/^repo_default_image=.*/repo_default_image='$recipe'/" $MNT/arkdep/config
 mkdir -p $MNT/arkdep/overlay/swap # mount point for /swap in the read-only rootfs
 # Boot entry template: the kernel options live in the file, only the machine-specific values are
