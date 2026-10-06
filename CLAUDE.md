@@ -99,8 +99,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `build-aur.timer`: daily 04:00 UTC + up to 30 min random delay, `Persistent=true`. Logs:
   `journalctl -u build-aur`. Manual run: `sudo systemctl start build-aur` or `sudo aur/build`.
 - `aur/build [--rebuild-builder] [repo_path]` rebuilds the `aur-builder` image when missing, older
-  than 7 days or requested, then runs `aur-build.sh` in it. A local test run works rootless on any
-  host: `aur/build /some/tmp/dir`.
+  than 7 days or requested, then runs `aur-build.sh` in it. `aur-build.sh` and `makepkg.conf` are
+  mounted from the checkout (the copies baked into the image are only a fallback), so changes to
+  them apply on the next run. A local test run works rootless on any host: `aur/build /some/tmp/dir`.
 
 ### aur-build.sh
 

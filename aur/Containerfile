@@ -19,6 +19,7 @@ RUN git clone --depth 1 https://aur.archlinux.org/aurutils.git && \
     sudo pacman -Scc --noconfirm
 
 USER root
+# aur/build mounts the current aur-build.sh and makepkg.conf over these copies
 COPY ./aur-build.sh /usr/bin/
 
 ENTRYPOINT ["/usr/bin/aur-build.sh"]
