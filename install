@@ -25,7 +25,7 @@ systemctl enable --now build-aur.timer
 for recipe in "${RECIPES[@]}"; do
 	systemctl enable --now "build-image@$recipe.timer"
 done
-systemctl enable --now distro-status.timer distro-trigger.socket
+systemctl enable --now distro-status.timer distro-trigger.socket podman-auto-update.timer
 systemctl try-restart distro-trigger.service  # new code of serve/build-trigger
 systemctl start distro-status.service  # first status before the web server serves the page
 systemctl restart distro-repo.service

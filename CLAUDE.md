@@ -17,8 +17,8 @@ serve/    nginx quadlet serving /mnt/repo (/<recipe>/, /aur/, /iso/) and the sta
 systemd/  build-image@.{service,timer}, build-aur.{service,timer}, build-iso.service,
           distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days)
-install   links the units and the quadlet, installs the polkit rule, enables the timers and the
-          trigger socket (run as root on the server; rerun after changing systemd/ or serve/)
+install   links the units and the quadlet, installs the polkit rule, enables the timers (also
+          podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
 ```
 
 All builds run on the server `192.168.2.50` (Debian, rootful podman via `sudo`, checkout

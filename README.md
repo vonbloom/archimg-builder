@@ -46,8 +46,9 @@ sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14
 `install` links the units in `systemd/` into `/etc/systemd/system`, the quadlet
 `serve/distro-repo.container` into `/etc/containers/systemd`, installs the polkit rule of the build
 trigger, enables `build-aur.timer`, one `build-image@<recipe>.timer` per recipe (default
-`p14s t480`), `distro-status.timer` and `distro-trigger.socket`, and (re)starts the web server. It
-is idempotent: run it again to schedule other recipes, or after changing `systemd/` or `serve/`.
+`p14s t480`), `distro-status.timer`, `distro-trigger.socket` and `podman-auto-update.timer`, and
+(re)starts the web server. It is idempotent: run it again to schedule other recipes, or after
+changing `systemd/` or `serve/`.
 
 Every build unit pulls the checkout (`git pull --ff-only`, as `admin`) before building, so a
 push to GitHub is enough for the next build to use it. A failed pull does not stop the build. The
@@ -62,7 +63,9 @@ inside never go stale.
 ### Web server
 
 `serve/distro-repo.container` runs `nginx:alpine` on port 80 (a podman quadlet, so systemd runs it
-as `distro-repo.service`) with `/mnt/repo` as its document root and directory listings on:
+as `distro-repo.service`) with `/mnt/repo` as its document root and directory listings on. It is
+kept up to date by `podman-auto-update.timer` (daily: pulls a new `nginx:alpine` and restarts the
+service, rolling back if it does not start):
 
 ```
 /mnt/repo/
