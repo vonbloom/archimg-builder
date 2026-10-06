@@ -11,6 +11,7 @@ enable wireplumber.service
 enable xdg-desktop-portal.service
 enable xdg-desktop-portal-wlr.service
 enable podman.socket
+enable podman-stop-all.service
 # Socket activated only: enabling the service too races with the socket at login
 disable podman.service
 # Started by sway-session.target, not at login (its [Install] says default.target)

@@ -187,6 +187,10 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `light` and the wallpaper folder (`pickwall`: `~/.local/share/wallpapers/{dia,nit}`). Waybar,
   foot and VS Code (no `window.autoDetectColorScheme` in the dotfiles) stay dark on purpose. New
   themed components belong in that hook.
+- **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
+  devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
+  `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
+  `user.conf.d/50-stop-timeout.conf` caps any user unit or scope at 15 s.
 - **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
   (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
   `fc-list ":charset=<hex>"`.

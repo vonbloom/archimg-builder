@@ -1,0 +1,15 @@
+[Unit]
+Description=Stop all podman containers when the user session ends
+# Containers started outside systemd (VS Code devcontainers, distrobox, podman run -d) are not
+# stopped cleanly on logout or shutdown: their conmon scopes ran into the stop timeout instead
+After=podman.socket
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/bin/podman stop --all --time 10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
