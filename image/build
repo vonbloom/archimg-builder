@@ -19,11 +19,12 @@ BUILDER_IMAGE=arkdep-builder
 [[ ! -d $REPO_PATH ]] && mkdir "$REPO_PATH"
 
 ensure_builder "$BUILDER_IMAGE" . "$REBUILD"
-echo "Builder: $(podman run --rm --entrypoint pacman "$BUILDER_IMAGE" -Q arkdep)"
+echo "Builder: $(podman run --rm --replace --name "build-image-$RECIPE-version" --entrypoint pacman "$BUILDER_IMAGE" -Q arkdep)"
 
-# Build recipe image
+# Build recipe image. The container is named after the unit (its log lines carry the name);
+# --replace removes a leftover of a killed run with the same name
 podman run \
-	--privileged --rm \
+	--privileged --rm --replace --name "build-image-$RECIPE" \
 	-v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
 	-v "$REPO_PATH":/root/target:Z \
 	"$BUILDER_IMAGE" "$RECIPE"

@@ -3,6 +3,7 @@ enable waybar.service
 enable swayidle.service
 enable pickwall.service
 enable pickwall.timer
+enable arkdep-update-status.path
 enable wlsunset.service
 enable pipewire.service
 enable pipewire-pulse.service

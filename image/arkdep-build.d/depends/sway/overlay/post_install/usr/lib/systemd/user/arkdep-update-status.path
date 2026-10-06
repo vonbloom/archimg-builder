@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh the waybar arkdep indicator when deployments change
+PartOf=sway-session.target
+After=sway-session.target
+
+[Path]
+# arkdep deploy writes the boot entry of the new deployment near the end (arkdep remove deletes
+# entries): refresh the indicator however the deployment was started (terminal, indicator click)
+PathChanged=/boot/loader/entries
+
+[Install]
+WantedBy=sway-session.target

@@ -4,7 +4,8 @@
 #        arkdep-update-status deploy   deploy the newest image in a terminal ("on-click")
 #        arkdep-update-status refresh  make waybar check again now (e.g. after a build)
 # The module is hidden when the system is up to date or the repository is unreachable (away from
-# home). Waybar refreshes it every hour and on SIGRTMIN+8 (sent after a deploy and by refresh).
+# home). Waybar refreshes it every hour and on SIGRTMIN+8, sent by refresh: after any deploy
+# (arkdep-update-status.path watches the boot entries) or by hand.
 
 set -uo pipefail
 
@@ -16,7 +17,7 @@ fi
 
 if [[ ${1:-} == deploy ]]; then
 	exec foot --title "arkdep deploy" sh -c \
-		"sudo arkdep deploy; pkill -RTMIN+$SIGNAL waybar; printf '\nPress Enter to close'; read -r _"
+		"sudo arkdep deploy; printf '\nPress Enter to close'; read -r _"
 fi
 
 json() {

@@ -14,7 +14,8 @@ ensure_builder arkdep-builder ../image 0
 podman build --pull=never --no-cache --rm -t iso-builder .
 
 mkdir -p "$OUTPUT/.new"
-podman run --privileged --rm -v "$OUTPUT/.new":/output:Z iso-builder
+# Named after the unit (its log lines carry the name); --replace removes a leftover of a killed run
+podman run --privileged --rm --replace --name build-iso -v "$OUTPUT/.new":/output:Z iso-builder
 rm -f "$OUTPUT"/*.iso
 mv "$OUTPUT"/.new/*.iso "$OUTPUT"/
 rmdir "$OUTPUT/.new"

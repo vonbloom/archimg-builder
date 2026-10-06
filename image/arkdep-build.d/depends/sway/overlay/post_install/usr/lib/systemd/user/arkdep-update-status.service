@@ -1,0 +1,7 @@
+[Unit]
+Description=Refresh the waybar arkdep indicator
+
+[Service]
+Type=oneshot
+# "-": nothing to refresh when waybar is not running
+ExecStart=-/usr/local/bin/arkdep-update-status refresh

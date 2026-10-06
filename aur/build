@@ -17,7 +17,8 @@ BUILDER_IMAGE=aur-builder
 # Packages are upgraded on every run anyway; the image age only matters for aurutils
 ensure_builder "$BUILDER_IMAGE" . "$REBUILD"
 
-podman run --rm \
+# Named after the unit (its log lines carry the name); --replace removes a leftover of a killed run
+podman run --rm --replace --name build-aur \
 	-v "$(pwd)"/packages.list:/packages.list:ro,Z \
 	-v "$REPO_PATH":/repo:Z \
 	"$BUILDER_IMAGE"
