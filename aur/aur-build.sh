@@ -21,10 +21,12 @@ if [[ ! -f $DB_PATH ]]; then
 	sudo -u builder repo-add "$DB_PATH"
 fi
 
+# Signatures are for the clients: aur/build signs after this container, so here the database is
+# changed (by repo-add) before being signed again, and the key is not in this keyring at all
 cat >> /etc/pacman.conf <<EOC
 
 [$REPO_NAME]
-SigLevel = Optional TrustAll
+SigLevel = Never
 Server = file://$REPO_PATH
 EOC
 pacman -Sy
