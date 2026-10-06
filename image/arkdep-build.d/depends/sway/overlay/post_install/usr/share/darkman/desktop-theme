@@ -6,16 +6,16 @@
 set -uo pipefail
 
 case ${1:-} in
-light) scheme=prefer-light gtk=adw-gtk3 icons=Papirus rofi=rounded-nord-light ;;
-dark) scheme=prefer-dark gtk=adw-gtk3-dark icons=Papirus-Dark rofi=rounded-nord-dark ;;
+light) scheme=prefer-light gtk=adw-gtk3 rofi=rounded-nord-light ;;
+dark) scheme=prefer-dark gtk=adw-gtk3-dark rofi=rounded-nord-dark ;;
 *) exit 1 ;;
 esac
 
 # GTK apps (the userland distrobox shares this dconf database) and, through the settings portal
-# (xdg-desktop-portal-gtk), browsers, Electron apps (VS Code) and GTK4/libadwaita
+# (xdg-desktop-portal-gtk), browsers, Electron apps (VS Code) and GTK4/libadwaita. Icons stay
+# Adwaita in both modes (GTK recolours its symbolic icons with the theme).
 gsettings set org.gnome.desktop.interface color-scheme "$scheme"
 gsettings set org.gnome.desktop.interface gtk-theme "$gtk"
-gsettings set org.gnome.desktop.interface icon-theme "$icons"
 
 # rofi: /etc/rofi.rasi uses the theme "current", found here before /usr/share/rofi/themes
 themes=${XDG_DATA_HOME:-$HOME/.local/share}/rofi/themes
