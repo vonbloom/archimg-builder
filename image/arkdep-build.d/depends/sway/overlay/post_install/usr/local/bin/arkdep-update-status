@@ -2,12 +2,17 @@
 # Waybar module custom/arkdep: is there a newer image in the arkdep repository than the running one?
 # Usage: arkdep-update-status          print the module state as waybar JSON ("exec")
 #        arkdep-update-status deploy   deploy the newest image in a terminal ("on-click")
+#        arkdep-update-status refresh  make waybar check again now (e.g. after a build)
 # The module is hidden when the system is up to date or the repository is unreachable (away from
-# home). Waybar refreshes it every hour and on SIGRTMIN+8 (sent after a deploy).
+# home). Waybar refreshes it every hour and on SIGRTMIN+8 (sent after a deploy and by refresh).
 
 set -uo pipefail
 
 SIGNAL=8
+
+if [[ ${1:-} == refresh ]]; then
+	exec pkill -RTMIN+$SIGNAL waybar
+fi
 
 if [[ ${1:-} == deploy ]]; then
 	exec foot --title "arkdep deploy" sh -c \

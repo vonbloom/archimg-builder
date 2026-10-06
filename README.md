@@ -180,7 +180,8 @@ arkdep-diff               # after rebooting: package changes against the previou
 The waybar module `custom/arkdep` (script `arkdep-update-status`, in the sway layer) checks the
 repository every hour: it shows 󰏔 and the number of new or updated packages when a newer image
 is available (click it to deploy in a terminal), 󰜉 when the newest image is deployed but not
-booted yet, and nothing when the system is up to date or the server is unreachable.
+booted yet, and nothing when the system is up to date or the server is unreachable. To check
+right away (e.g. after a build), run `arkdep-update-status refresh`.
 
 ## AUR repository (`aur/`)
 
