@@ -79,8 +79,10 @@ bindswitch --reload --locked lid:off output eDP-1 enable
 #
 # Basics:
 #
-    # Start a terminal
-    bindsym $mod+Return exec $term
+    # Start a terminal attached to the tmux session "main" (created if missing), or a plain one.
+    # Only these bindings start tmux: other shells (VS Code, SSH, tty) never do.
+    bindsym $mod+Return exec $term tmux new-session -A -s main
+    bindsym $mod+Shift+Return exec $term
 
     # Kill focused window
     bindsym $mod+Shift+q kill
@@ -103,6 +105,8 @@ bindswitch --reload --locked lid:off output eDP-1 enable
     # Switch between the light and dark themes (darkman goes back to automatic at the next
     # sunrise or sunset)
     bindsym $mod+Shift+t exec darkman toggle
+    # List of all these key bindings (rofi), read from this config
+    bindsym $mod+F1 exec keys-menu
 #
 # Moving around:
 #

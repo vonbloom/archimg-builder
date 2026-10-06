@@ -179,6 +179,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Menus**: every system menu is a rofi script in `depends/sway/.../usr/local/bin` (e.g.
   `power-menu`, bound to `$mod+Shift+e` and the waybar power button), using the system theme
   (`/etc/rofi.rasi`). Do not add GTK menus (waybar `menu-file`) or swaynag dialogs.
+  `keys-menu` (`$mod+F1`) lists the `bindsym` lines of the running sway config: when adding a
+  binding with a new kind of command, add its Catalan description to `describe()` there
+  (otherwise the raw command is shown).
 - **Light/dark mode**: `darkman` (started by `sway-session.target`, location in
   `/etc/xdg/darkman/config.yaml`) runs `/usr/share/darkman/desktop-theme light|dark` at sunrise
   and sunset (`darkman toggle`: `$mod+Shift+t`, power menu). It sets gsettings `color-scheme`

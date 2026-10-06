@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Keyboard shortcuts menu (rofi), opened by $mod+F1. Lists the bindsym lines of the sway config
+# that is running (and its includes), with a Catalan description for the known commands (the
+# command itself otherwise). Choosing an entry runs it, unless it groups several keys.
+
+set -uo pipefail
+
+# The config sway reads, in its own lookup order
+config=/etc/sway/config
+for c in "$HOME/.sway/config" "${XDG_CONFIG_HOME:-$HOME/.config}/sway/config"; do
+	[[ -f $c ]] && config=$c && break
+done
+
+# Main config followed by its includes (globs expanded by the shell)
+files=("$config")
+while read -r pattern; do
+	for f in ${pattern/#\~/$HOME}; do [[ -f $f ]] && files+=("$f"); done
+done < <(awk '$1 == "include" { $1 = ""; sub(/^ /, ""); print }' "$config")
+
+# key <TAB> description <TAB> command (empty when the keys of an entry run different commands)
+# shellcheck disable=SC1112 # typographic apostrophes in the Catalan texts
+entries=$(awk '
+function expand(s,   v) { for (v in vars) gsub("\\" v, vars[v], s); return s }
+function key(k,   parts, n, i, p, out) {
+	n = split(k, parts, "+")
+	for (i = 1; i <= n; i++) {
+		p = parts[i]
+		if (p == "Mod4") p = "Win"; else if (p == "Mod1") p = "Alt"; else if (p == "Control") p = "Ctrl"
+		else if (p == "Return") p = "Enter"; else if (p == "Escape") p = "Esc"; else if (p == "space") p = "Espai"
+		else if (p == "minus") p = "-"; else if (p == "Left") p = "←"; else if (p == "Right") p = "→"
+		else if (p == "Up") p = "↑"; else if (p == "Down") p = "↓"; else if (p == "Print") p = "Impr Pant"
+		else if (p == "XF86AudioMute") p = "Silenci"; else if (p == "XF86AudioMicMute") p = "Silenci micro"
+		else if (p == "XF86AudioLowerVolume") p = "Volum −"; else if (p == "XF86AudioRaiseVolume") p = "Volum +"
+		else if (p == "XF86MonBrightnessDown") p = "Brillantor −"; else if (p == "XF86MonBrightnessUp") p = "Brillantor +"
+		else if (length(p) == 1) p = toupper(p)
+		out = out (i > 1 ? "+" : "") p
+	}
+	return out
+}
+function where(d) { return d == "left" ? "a l’esquerra" : d == "right" ? "a la dreta" : d == "up" ? "amunt" : "avall" }
+function describe(c,   m) {
+	if (c ~ /^exec (foot|footclient) tmux /) return "Obre un terminal amb tmux (sessió main)"
+	if (c ~ /^exec (foot|footclient)$/) return "Obre un terminal sense tmux"
+	if (c ~ /^exec (foot|footclient) /) return "Obre un terminal"
+	if (c == "kill") return "Tanca la finestra"
+	if (c ~ /^exec rofi -show drun/) return "Llançador d’aplicacions"
+	if (c == "reload") return "Recarrega la configuració de sway"
+	if (c ~ /^exec power-menu/) return "Menú de sessió: bloqueja, surt, suspèn, reinicia, apaga"
+	if (c ~ /^exec darkman toggle/) return "Canvia entre el mode clar i el fosc"
+	if (c ~ /^exec keys-menu/) return "Aquesta llista de dreceres"
+	if (c ~ /^exec wallpaper-menu/) return "Tria el fons de pantalla"
+	if (c ~ /^focus (left|right|up|down)$/) return "Mou el focus " where(substr(c, 7))
+	if (c ~ /^move (left|right|up|down)$/) return "Mou la finestra " where(substr(c, 6))
+	if (c ~ /^workspace number [0-9]+$/) return "Ves a l’escriptori"
+	if (c ~ /^move container to workspace number [0-9]+$/) return "Mou la finestra a l’escriptori"
+	if (c == "splith") return "Divideix en horitzontal"
+	if (c == "splitv") return "Divideix en vertical"
+	if (c == "layout stacking") return "Disposició apilada"
+	if (c == "layout tabbed") return "Disposició en pestanyes"
+	if (c == "layout toggle split") return "Alterna la divisió horitzontal / vertical"
+	if (c == "fullscreen") return "Pantalla completa"
+	if (c == "floating toggle") return "Finestra flotant / en mosaic"
+	if (c == "focus mode_toggle") return "Alterna el focus entre finestres en mosaic i flotants"
+	if (c == "focus parent") return "Focus al contenidor pare"
+	if (c == "move scratchpad") return "Amaga la finestra al scratchpad"
+	if (c == "scratchpad show") return "Mostra o amaga les finestres del scratchpad"
+	if (c ~ /^mode "?resize"?$/) return "Mode redimensionar: fletxes o HJKL, Enter o Esc per sortir"
+	if (c ~ /set-sink-mute/) return "Silencia el so"
+	if (c ~ /set-sink-volume .*-[0-9]+%/) return "Baixa el volum"
+	if (c ~ /set-sink-volume .*\+[0-9]+%/) return "Puja el volum"
+	if (c ~ /set-source-mute/) return "Silencia el micròfon"
+	if (c ~ /brightnessctl set [0-9]+%-/) return "Baixa la brillantor"
+	if (c ~ /brightnessctl set [0-9]+%\+/) return "Puja la brillantor"
+	if (c ~ /^exec grim$/) return "Captura de tota la pantalla (a Imatges)"
+	if (c ~ /^exec grim -g/) return "Captura d’una zona al porta-retalls"
+	return c
+}
+{ sub(/^[ \t]+/, "") }
+/^#/ || /^$/ { next }
+$1 == "set" && $2 ~ /^\$/ { v = $2; $1 = $2 = ""; sub(/^ +/, ""); vars[v] = $0; next }
+$1 == "mode" && /\{$/ { inmode = 1; next }
+inmode && /^\}/ { inmode = 0; next }
+inmode { next }
+$1 == "floating_modifier" {
+	m = key(expand($2))
+	add(m "+clic esquerre", "Arrossega per moure la finestra", "")
+	add(m "+clic dret", "Arrossega per redimensionar la finestra", "")
+	next
+}
+$1 == "bindsym" {
+	i = 2
+	while ($i ~ /^--/) i++
+	k = key(expand($i))
+	c = ""
+	for (j = i + 1; j <= NF; j++) c = c (j > i + 1 ? " " : "") $j
+	c = expand(c)
+	add(k, describe(c), c)
+}
+function add(k, d, c) {
+	if (d in idx) { n = idx[d]; keys[n] = keys[n] "\n" k; if (cmds[n] != c) cmds[n] = ""; return }
+	idx[d] = ++count; keys[count] = k; descs[count] = d; cmds[count] = c
+}
+END {
+	for (n = 1; n <= count; n++) {
+		# Win+1 ... Win+0 (same prefix, one digit each): "Win+1…0"
+		m = split(keys[n], ks, "\n")
+		if (m > 2) {
+			prefix = substr(ks[1], 1, length(ks[1]) - 1); same = 1
+			for (i = 1; i <= m; i++)
+				if (substr(ks[i], 1, length(ks[i]) - 1) != prefix || substr(ks[i], length(ks[i])) !~ /^[0-9]$/) same = 0
+			if (same) { keys[n] = prefix substr(ks[1], length(ks[1])) "…" substr(ks[m], length(ks[m])); m = 1 }
+		}
+		gsub("\n", " / ", keys[n])
+		printf "%s\t%s\t%s\n", keys[n], descs[n], cmds[n]
+	}
+}' "${files[@]}")
+
+[[ -n $entries ]] || exit 0
+
+# Pango markup, keys in a monospace column (awk counts characters, not bytes: arrows are UTF-8)
+choice=$(awk -F'\t' '
+function esc(s) { gsub(/&/, "\\&amp;", s); gsub(/</, "\\&lt;", s); gsub(/>/, "\\&gt;", s); return s }
+{ k[NR] = $1; d[NR] = $2; if (length($1) > w) w = length($1) }
+END { for (i = 1; i <= NR; i++) printf "<tt>%s%*s</tt>  %s\n", esc(k[i]), w - length(k[i]), "", esc(d[i]) }
+' <<<"$entries" | rofi -dmenu -i -no-custom -markup-rows -format i -p "Dreceres" \
+	-theme-str 'window { width: 760px; } listview { lines: 14; }') || exit 0
+
+cmd=$(sed -n "$((choice + 1))p" <<<"$entries" | cut -f3)
+[[ -n $cmd ]] && swaymsg -- "$cmd" >/dev/null
