@@ -1,0 +1,20 @@
+/* ROUNDED THEME FOR ROFI */
+/* Author: Newman Sanchez (https://github.com/newmanls) */
+/* Nord light variant of rounded-nord-dark.rasi (light mode, see /usr/share/darkman/desktop-theme) */
+
+* {
+    bg0:    #ECEFF4F2;
+    bg1:    #E5E9F0;
+    bg2:    #D8DEE9B3;
+    bg3:    #5E81ACF2;
+    fg0:    #2E3440;
+    fg1:    #3B4252;
+    fg2:    #2E3440;
+    fg3:    #8A93A6;
+}
+
+@import "template/rounded-template.rasi"
+
+element selected {
+    text-color: @bg1;
+}

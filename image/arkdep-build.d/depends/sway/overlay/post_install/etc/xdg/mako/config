@@ -1,0 +1,20 @@
+# Notifications: Nord dark, Nord light while the "light" mode is set (by darkman, through
+# /usr/share/darkman/desktop-theme). Backgrounds 86 % opaque.
+font=sans-serif 11
+background-color=#2e3440dc
+text-color=#eceff4
+border-color=#88c0d0
+border-size=2
+border-radius=6
+padding=10,12
+
+[urgency=high]
+border-color=#bf616a
+
+[mode=light]
+background-color=#eceff4dc
+text-color=#2e3440
+border-color=#5e81ac
+
+[mode=light urgency=high]
+border-color=#bf616a

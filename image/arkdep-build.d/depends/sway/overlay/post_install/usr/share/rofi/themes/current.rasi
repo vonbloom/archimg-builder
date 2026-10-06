@@ -1,0 +1,3 @@
+/* Theme used by /etc/rofi.rasi. darkman writes ~/.local/share/rofi/themes/current.rasi (found
+   first) with the light or dark theme; this one is the fallback until it runs. */
+@import "rounded-nord-dark.rasi"

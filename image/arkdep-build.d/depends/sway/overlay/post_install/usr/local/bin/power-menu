@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Session and power menu (rofi), opened by $mod+Shift+e and the waybar power button.
-# Ending the session, rebooting and powering off ask for confirmation.
+# Ending the session, rebooting and powering off ask for confirmation. Also switches between the
+# light and dark themes (darkman, like $mod+Shift+t).
 
 set -uo pipefail
 
-LOCK=󰌾 LOGOUT=󰍃 SUSPEND=󰤄 HIBERNATE=󰒲 REBOOT=󰜉 POWEROFF=󰐥
+THEME=󰔎 LOCK=󰌾 LOGOUT=󰍃 SUSPEND=󰤄 HIBERNATE=󰒲 REBOOT=󰜉 POWEROFF=󰐥
 
 menu() { # menu <prompt> <entries...>
 	printf '%s\n' "${@:2}" | rofi -dmenu -i -no-custom -p "$1" -theme-str 'window { width: 320px; }'
@@ -15,6 +16,7 @@ confirm() {
 }
 
 choice=$(menu "Sessió" \
+	"$THEME  Mode clar / fosc" \
 	"$LOCK  Bloqueja" \
 	"$LOGOUT  Surt de la sessió" \
 	"$SUSPEND  Suspèn" \
@@ -23,6 +25,7 @@ choice=$(menu "Sessió" \
 	"$POWEROFF  Apaga") || exit 0
 
 case $choice in
+"$THEME"*) darkman toggle ;;
 "$LOCK"*) swaylock -f -c 000000 ;;
 "$LOGOUT"*) confirm "Surt de la sessió" && systemctl --user stop sway-session.target && swaymsg exit ;;
 "$SUSPEND"*) systemctl suspend ;;

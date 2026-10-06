@@ -179,6 +179,14 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Menus**: every system menu is a rofi script in `depends/sway/.../usr/local/bin` (e.g.
   `power-menu`, bound to `$mod+Shift+e` and the waybar power button), using the system theme
   (`/etc/rofi.rasi`). Do not add GTK menus (waybar `menu-file`) or swaynag dialogs.
+- **Light/dark mode**: `darkman` (started by `sway-session.target`, location in
+  `/etc/xdg/darkman/config.yaml`) runs `/usr/share/darkman/desktop-theme light|dark` at sunrise
+  and sunset (`darkman toggle`: `$mod+Shift+t`, power menu). It sets gsettings `color-scheme`
+  (apps through xdg-desktop-portal-gtk), `gtk-theme` (`adw-gtk3[-dark]`), `icon-theme`
+  (`Papirus[-Dark]`), the rofi theme (`~/.local/share/rofi/themes/current.rasi`), the mako mode
+  `light` and the wallpaper folder (`pickwall`: `~/.local/share/wallpapers/{dia,nit}`). Waybar,
+  foot and VS Code (no `window.autoDetectColorScheme` in the dotfiles) stay dark on purpose. New
+  themed components belong in that hook.
 - **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
   (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
   `fc-list ":charset=<hex>"`.

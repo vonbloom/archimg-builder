@@ -100,6 +100,9 @@ bindswitch --reload --locked lid:off output eDP-1 enable
 
     # Session and power menu (rofi): lock, log out, suspend, hibernate, reboot, power off
     bindsym $mod+Shift+e exec power-menu
+    # Switch between the light and dark themes (darkman goes back to automatic at the next
+    # sunrise or sunset)
+    bindsym $mod+Shift+t exec darkman toggle
 #
 # Moving around:
 #

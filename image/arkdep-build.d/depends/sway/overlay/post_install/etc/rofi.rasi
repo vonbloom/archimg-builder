@@ -1,2 +1,2 @@
-
-@theme "/usr/share/rofi/themes/rounded-nord-dark.rasi"
+/* "current": the light or dark theme, switched by darkman (/usr/share/darkman/desktop-theme) */
+@theme "current"

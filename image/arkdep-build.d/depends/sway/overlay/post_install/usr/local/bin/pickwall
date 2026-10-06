@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Random wallpaper (pickwall.service: every 5 minutes and when the light/dark mode changes).
+# Picks from ~/.local/share/wallpapers/dia by day and .../nit by night (darkman), or from the
+# whole folder when that subfolder does not exist.
+
+set -uo pipefail
+
+dir=$HOME/.local/share/wallpapers
+case $(darkman get 2>/dev/null) in
+light) sub=dia ;;
+dark) sub=nit ;;
+*) sub= ;;
+esac
+[[ -n $sub && -d $dir/$sub ]] && dir=$dir/$sub
+
+img=$(find "$dir" -type f | shuf -n 1)
+[[ -n $img ]] && swaymsg "output * bg \"$img\" fill"

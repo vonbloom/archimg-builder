@@ -3,5 +3,7 @@ Description=Sway Wayland Session
 Documentation=man:sway(1)
 BindsTo=graphical-session.target
 Wants=graphical-session-pre.target
+# Light/dark mode switching (darkman.service.d/sway.conf ties it to this target)
+Wants=darkman.service
 After=graphical-session-pre.target
 

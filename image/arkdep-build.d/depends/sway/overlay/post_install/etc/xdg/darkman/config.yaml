@@ -1,0 +1,7 @@
+# darkman: light mode from sunrise to sunset at home (same place as wlsunset), dark mode at night.
+# The switch itself is the hook /usr/share/darkman/desktop-theme.
+lat: 41.6
+lng: 2.35
+usegeoclue: false
+# Applications get the mode from gsettings, relayed by xdg-desktop-portal-gtk (set by the hook)
+portal: false

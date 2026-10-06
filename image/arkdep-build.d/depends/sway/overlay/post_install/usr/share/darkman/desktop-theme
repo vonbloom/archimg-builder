@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# darkman hook (sway layer): switch the desktop to the light or dark theme. Runs at sunrise and
+# sunset, on "darkman toggle|set" and when darkman starts with the sway session.
+# The waybar and the terminal (foot) always stay dark.
+
+set -uo pipefail
+
+case ${1:-} in
+light) scheme=prefer-light gtk=adw-gtk3 icons=Papirus rofi=rounded-nord-light ;;
+dark) scheme=prefer-dark gtk=adw-gtk3-dark icons=Papirus-Dark rofi=rounded-nord-dark ;;
+*) exit 1 ;;
+esac
+
+# GTK apps (the userland distrobox shares this dconf database) and, through the settings portal
+# (xdg-desktop-portal-gtk), browsers, Electron apps (VS Code) and GTK4/libadwaita
+gsettings set org.gnome.desktop.interface color-scheme "$scheme"
+gsettings set org.gnome.desktop.interface gtk-theme "$gtk"
+gsettings set org.gnome.desktop.interface icon-theme "$icons"
+
+# rofi: /etc/rofi.rasi uses the theme "current", found here before /usr/share/rofi/themes
+themes=${XDG_DATA_HOME:-$HOME/.local/share}/rofi/themes
+mkdir -p "$themes"
+echo "@import \"/usr/share/rofi/themes/$rofi.rasi\"" >"$themes/current.rasi"
+
+# Notifications: /etc/xdg/mako/config styles the "light" mode
+if [[ $1 == light ]]; then
+	makoctl mode -a light >/dev/null
+else
+	makoctl mode -r light >/dev/null
+fi
+
+# Wallpaper from the folder of the new mode (pickwall)
+systemctl --user start --no-block pickwall.service

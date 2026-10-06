@@ -122,7 +122,7 @@ image/arkdep-build.d/
 ├── common/           pacman.conf (CachyOS x86_64_v3 + Arch + arkane, NoExtract rules), mirrorlist,
 │                     extensions/{pre_build,post_install}.sh
 ├── depends/generic/  base system: bootstrap.list, package.list, overlay/{post_bootstrap,post_install}
-├── depends/sway/     desktop: sway, waybar, foot, rofi, user units
+├── depends/sway/     desktop: sway, waybar, foot, rofi, mako, darkman (light/dark), user units
 ├── p14s/             ThinkPad P14s Gen 1 AMD (Ryzen 7 PRO 4750U)
 └── t480/             ThinkPad T480 (i7-8650U)
 ```
