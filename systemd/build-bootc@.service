@@ -1,0 +1,20 @@
+[Unit]
+Description=Build the %i bootc image and push it to the registry
+After=network-online.target remote-fs.target distro-registry.service
+# Wants, not Requires: bootc/prune restarts the registry, which would stop a requiring unit
+Wants=network-online.target distro-registry.service
+RequiresMountsFor=/mnt/repo
+# notify-failure@ comes from the homelab repo (notify_ha role)
+OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+# Bring the checkout up to date first (fast-forward only). A failed pull (GitHub down, local
+# changes) does not stop the build: it runs with the code already there.
+ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u admin -- git -C /home/admin/distro-builder pull --ff-only
+# One build at a time with the arkdep images (two CPUs). prune too: its garbage collection must not
+# run during another recipe's push
+ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/bootc/build %i
+ExecStartPost=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/bootc/prune %i
+ExecStartPost=/usr/bin/env REPO_PATH=/mnt/repo/bootc/%i KIND=bootc /home/admin/distro-builder/image/notify-image %i
+TimeoutStartSec=6h

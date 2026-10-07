@@ -1,0 +1,2 @@
+# /home is a link to /var/home on bootc systems, and AppArmor matches the resolved path
+@{HOMEDIRS}+=/var/home/

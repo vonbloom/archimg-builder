@@ -1,0 +1,70 @@
+# bootc images
+
+Trial (since 2026-10-07) of [bootc](https://github.com/bootc-dev/bootc) as a replacement for
+arkdep: the same recipe (`image/arkdep-build.d/<recipe>`) built as a bootc container image, based
+on the Arch image of [bootcrew/mono](https://github.com/bootcrew/mono). Built weekly and pushed to
+the build server's registry by `build-bootc@<recipe>` (see the main README); no laptop uses it yet.
+
+- `Containerfile`: CachyOS v3 repositories and `linux-cachyos` like the recipe; `bootc` from the
+  `[aur]` repository (`aur/local/bootc`: pinned version, no SELinux); composefs backend.
+- `build-recipe.sh`: applies the arkdep recipe in arkdep-build's order (package lists, overlays,
+  presets, locale-gen), without arkdep, `arkane-keyring` and `nss-altfiles`.
+- `overlay/`: files only bootc systems need (the registry, AppArmor's `@{HOMEDIRS}`).
+- `build`, `prune`: build, rechunk and push; retention in the registry.
+
+```
+podman build --no-hostname -f bootc/Containerfile --build-arg RECIPE=p14s -t localhost/p14s-bootc .
+bcvk to-disk --composefs-backend --bootloader systemd --filesystem btrfs --format qcow2 \
+    --disk-size 30G --target-transport containers-storage localhost/p14s-bootc disk.qcow2
+```
+
+`bcvk` (release binaries at github.com/bootc-dev/bcvk) installs the image to a disk image from an
+ephemeral VM, rootless. Boot the disk with QEMU + OVMF like `iso/test-vm`.
+
+## Results (VM, bootc 1.17.0, bcvk 0.21.0, 2026-10-07)
+
+These tests compiled bootc in the Containerfile (since replaced by the `[aur]` package).
+
+- The image matches the arkdep p14s image: same 520 packages and versions except the arkdep stack
+  (bootc adds `composefs`, `ostree`, `skopeo`), same enabled system and user units. 4.1 GB.
+- Install: ESP + btrfs root, systemd-boot, ~2 min. Boots to sway with waybar (autologin added by a
+  test-only layer), no failed units, 11.5-13.6 s in the VM (initrd 6.7-7.2 s: the forced amdgpu
+  load, see `docs/todo.md`).
+- Updates from a registry (`bootc switch`/`upgrade`), image split per package with
+  [chunkah](https://github.com/coreos/chunkah) (128 layers, 1.2 GB, it reads the pacman database
+  at `/usr/lib/sysimage`): a full rebuild with the same package versions changed 12 layers, 208 MiB
+  downloaded, 7 s to stage, +91 MiB on disk (composefs stores each file once). arkdep downloads the
+  whole image (~900 MB) every time. Of the 208 MiB: 118 MiB are the bootc binaries rebuilt from
+  source (not reproducible; `install-all` also ships the integration tests), 62 MiB the initramfs
+  (regenerated every build), ~28 MiB generated files (pacman db, caches, certificates).
+- `/etc` 3-way merge: a local edit to an image file and a new local file survive updates; an image
+  change to a file the machine did not touch is applied; when both changed a file, the local copy
+  wins and the image change is silently dropped. No `migrate_files` list needed.
+- `/var` (journal, `/var/home`) is shared by all deployments. `bootc rollback` works (two
+  deployments, each with its own `/etc`).
+- `pacman` fails on the read-only `/usr`, as with arkdep; `bootc usroverlay` gives a writable
+  `/usr` until the next reboot (try packages without rebuilding).
+- Rootless podman and distrobox work as `roger`.
+
+## Problems found
+
+- bootcrew's Arch image has failed to build every day since 2026-08-31 (CI). Building bootc on
+  Arch needs `--no-default-features` (the `selinux` feature links libselinux, only in the AUR).
+- The recipe's `NoExtract usr/include/*` breaks compiling bootc: the builder stage uses plain Arch.
+- podman bind mounts `/etc/resolv.conf` and `/etc/hostname` during builds: `--no-hostname`, and the
+  overlay's `resolv.conf` link becomes a tmpfiles.d entry.
+- `/usr/local` is a link to `/var/usrlocal`, which bootc never updates after the install: the
+  recipe's scripts move to `/usr/bin`.
+
+## Missing before real use
+
+- Done: the registry on the build server (`insecure` in `registries.conf.d`), retention
+  (`prune`), `bootc` packaged once in `[aur]` instead of compiled in every build.
+- Image signing (cosign + `policy.json` on the clients) instead of the GPG-signed arkdep repository.
+- Machine-specific kernel arguments (`resume=`, `resume_offset=` for hibernation) set at install
+  time and kept across updates: not tested. The swap file has to live outside the composefs root.
+- btrbk (`snapshot_dir /arkdep/snapshots`), the arkdep waybar module (`bootc status --json`),
+  `notify-image`, the status page, the installer ISO (`bootc install to-disk`), `arkdep-diff`.
+- btrfs is "expected to work but not tested" upstream with the composefs backend; it worked here.
+  No boot counting / automatic rollback (arkdep has none either).
+- Reinstall: there is no migration from arkdep.

@@ -9,16 +9,20 @@ comments and commit messages are in English (short, sentence-style subjects).
 
 ```
 image/    arkdep image recipes (arkdep-build.d/) and build, prune, notify-image
-aur/      AUR packages (packages.list) built into the [aur] repository
+aur/      AUR packages (packages.list) and own PKGBUILDs (local/) built into the [aur] repository
 iso/      installer ISO: Arch releng profile + arkdep + airootfs/root/install.sh; test-vm
 serve/    nginx quadlet serving /mnt/repo (/<recipe>/, /aur/, /iso/) and the status page at /
           (web/index.html; status-gen writes /run/distro-status, served at /status/;
-          build-trigger starts builds: POST /api/build/<unit>, polkit rule distro-trigger.rules)
-systemd/  build-image@.{service,timer}, build-aur.{service,timer}, build-iso.service,
+          build-trigger starts builds: POST /api/build/<unit>, polkit rule distro-trigger.rules);
+          distro-registry.container: registry:2 on port 5000 (plain HTTP), storage /mnt/repo/registry
+systemd/  build-image@.{service,timer}, build-bootc@.{service,timer}, build-aur.{service,timer}, build-iso.service,
           distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
           sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg)
 docs/     todo.md: pending improvements (boot time, storage, memory)
+bootc/    the recipes as bootc images (trial, no laptop uses them): Containerfile, build-recipe.sh,
+          build (chunkah + push to the registry), prune, overlay/; design and VM results in
+          bootc/README.md
 keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also
           podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
@@ -110,6 +114,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
   (the failure mode of the old LXC builder).
 - `aur sync --no-view --noconfirm --auto-key-retrieve <list>`: builds new and outdated targets and
   their AUR dependencies, skips up-to-date ones. AUR PKGBUILD changes are not reviewed.
+- Then `aur build --syncdeps` in a copy of each `local/<pkgname>/` (mounted at `/local`). aur build
+  skips a package whose file for that version is already in the repository: local packages only
+  change when their `pkgver`/`pkgrel` does (pinned on purpose, e.g. `bootc`). The directory name
+  must be the package name (it counts as wanted in the cleanup below), and its AUR dependencies, if
+  any, must be in `packages.list`.
 - Packages no longer listed nor needed as AUR dependencies (`aur depends`) are `repo-remove`d and
   their files deleted; `paccache -rk2` keeps the last two versions of each package.
 - `makepkg.conf` (`/etc/makepkg.conf.d/`) disables `-debug` packages.
@@ -122,6 +131,28 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `aur depends` default output is dependency pairs; use `--jsonl` + `aur format -f '%n\n'` for names.
 - "Failed to connect to udev via varlink" / "command failed to execute correctly" while installing
   dependencies is the udev pacman hook inside the container: harmless.
+
+## bootc images (`bootc/`)
+
+- `build-bootc@<recipe>`: `bootc/build` (podman build `--pull=always --no-cache --no-hostname`,
+  package list to `/mnt/repo/bootc/<recipe>/<recipe>-<date>.pkgs`, chunkah rechunk piped into
+  `podman load`, push `<recipe>:<date>` and `:latest` to `localhost:5000`, then remove the local
+  images: the server has little disk), then `bootc/prune` and `image/notify-image` with
+  `REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc`. Weekly, Sunday 13:00 Europe/Madrid.
+- Build and prune run under `/run/build-image.lock` with the arkdep builds: two CPUs, and the
+  registry's `garbage-collect` must never run during a push (it deletes blobs of unfinished
+  uploads). prune deletes manifests through the API (`REGISTRY_STORAGE_DELETE_ENABLED`), runs
+  `registry garbage-collect --delete-untagged` in the `distro-registry` container and then restarts
+  it: registry:2 caches blob descriptors in memory, and without the restart a later push skipped
+  uploading a blob the collection had deleted (a broken image, seen in a test). That restart is why
+  `build-bootc@` has `Wants=distro-registry.service`, not `Requires=` (a restart of a required unit
+  stops the requiring one, prune included).
+- `bootc` comes from `[aur]` (`aur/local/bootc`, without the `selinux` feature, which links
+  libselinux), signed: the build trusts `keys/distro-builder.asc` and adds `[aur]` only for that
+  `pacman -S`. Local test runs: `REGISTRY=127.0.0.1:5000 PKGS_DIR=... AUR_SERVER=... AUR_SIGLEVEL=Never`.
+- `bootc/overlay/` holds files only bootc images need: the registry as insecure in
+  `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
+- No image signing yet (cosign + `policy.json` on the clients), see `bootc/README.md`.
 
 ## Installer ISO (`iso/`)
 

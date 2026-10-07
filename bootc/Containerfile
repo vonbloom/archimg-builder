@@ -1,0 +1,81 @@
+# The arkdep recipe image/arkdep-build.d/$RECIPE as a bootc image (composefs backend), built and
+# pushed to the registry by bootc/build (build-bootc@<recipe>.service). Structure taken from the
+# Arch image of https://github.com/bootcrew/mono, with the recipe's repositories (CachyOS v3) and
+# kernel (linux-cachyos), and bootc from the [aur] repository (aur/local/bootc).
+#   podman build --no-hostname -f bootc/Containerfile --build-arg RECIPE=p14s -t localhost/p14s-bootc .
+# (--no-hostname: otherwise /etc/hostname is a bind mount and the recipe cannot install its own)
+# Build context: the repository root (the recipe, the boot template and the key are read from it).
+
+FROM docker.io/archlinux/archlinux:latest AS base
+
+# Repositories as in common/extensions/pre_build.sh. [arkane] only serves arkdep: left out.
+RUN --mount=type=bind,source=image/arkdep-build.d/common,target=/common \
+    pacman-key --init && pacman-key --populate archlinux && \
+    pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com && \
+    pacman-key --lsign-key F3B607488DB35A47 && \
+    pacman -U --noconfirm https://mirror.cachyos.org/repo/x86_64/cachyos/cachyos-keyring-20240331-1-any.pkg.tar.zst && \
+    sed '/^\[arkane\]/,/^Server/d' /common/pacman.conf > /etc/pacman.conf && \
+    cp /common/mirrorlist /etc/pacman.d/mirrorlist
+
+# pacman's database, cache and log go to /usr/lib/sysimage (bootcrew): /var is shared by all
+# deployments, the package database must follow /usr
+RUN grep "= */var" /etc/pacman.conf | sed "/= *\/var/s/.*=// ; s/ //" | xargs -n1 sh -c 'mkdir -p "/usr/lib/sysimage/$(dirname $(echo $1 | sed "s@/var/@@"))" && mv -v "$1" "/usr/lib/sysimage/$(echo "$1" | sed "s@/var/@@")"' '' && \
+    sed -i -e "/= *\/var/ s/^#//" -e "s@= */var@= /usr/lib/sysimage@g" -e "/DownloadUser/d" /etc/pacman.conf && \
+    pacman -Syu --noconfirm
+
+FROM base AS system
+ARG RECIPE=p14s
+# The [aur] repository, only for this step (the image's pacman.conf stays the recipe's). Local test
+# runs against an unsigned repository: --build-arg AUR_SIGLEVEL=Never
+ARG AUR_SERVER=http://192.168.2.50/aur
+ARG AUR_SIGLEVEL=Required
+
+# bootc (built without SELinux support, see aur/local/bootc) and the other tools bootc install
+# needs (bootcrew), then the recipe as arkdep-build would apply it
+RUN --mount=type=bind,source=keys/distro-builder.asc,target=/distro-builder.asc \
+    pacman-key --add /distro-builder.asc && \
+    pacman-key --lsign-key CF471E6685974BF43EA113623F9EBD77B1E60E55 && \
+    cp /etc/pacman.conf /tmp/pacman-aur.conf && \
+    printf '\n[aur]\nSigLevel = %s\nServer = %s\n' "$AUR_SIGLEVEL" "$AUR_SERVER" >> /tmp/pacman-aur.conf && \
+    pacman --config /tmp/pacman-aur.conf -Sy --noconfirm --needed bootc bubblewrap dosfstools e2fsprogs && \
+    rm /tmp/pacman-aur.conf
+RUN --mount=type=bind,source=.,target=/ctx bash /ctx/bootc/build-recipe.sh "$RECIPE"
+
+# Files only bootc systems need (the registry, AppArmor's view of /home)
+COPY bootc/overlay/ /
+
+# bootc's units need no preset ("disable *" in 81-custom.preset is fine): its generator and other
+# units pull them in. Only bootc-fetch-apply-updates.timer has an [Install] section, and stays
+# disabled: updates by hand, as with arkdep.
+
+# Kernel options of the boot template, minus what bootc sets (root, rootflags, resume)
+RUN --mount=type=bind,source=iso/airootfs/root/systemd-boot.template,target=/template \
+    mkdir -p /usr/lib/bootc/kargs.d && \
+    sed -n 's/^options //p' /template | tr ' ' '\n' | \
+      grep -vE '^(root=|rootflags=|rw$|@RESUME@|$)' | \
+      sed 's/.*/"&"/' | paste -sd, | sed 's/^/kargs = [/; s/$/]/' \
+      > /usr/lib/bootc/kargs.d/10-recipe.toml && \
+    cat /usr/lib/bootc/kargs.d/10-recipe.toml
+
+# initramfs with bootc's dracut module (bootcrew's shared/initramfs.sh), for the image's kernel
+# rather than the build host's
+RUN mkdir -p /usr/lib/dracut/dracut.conf.d && \
+    printf 'systemdsystemconfdir=/etc/systemd/system\nsystemdsystemunitdir=/usr/lib/systemd/system\n' \
+      > /usr/lib/dracut/dracut.conf.d/30-bootc-module-fix.conf && \
+    printf 'reproducible=yes\nhostonly=no\nadd_dracutmodules+=" bootc "\n' \
+      > /usr/lib/dracut/dracut.conf.d/30-bootc.conf && \
+    kver=$(ls /usr/lib/modules) && \
+    dracut --force --kver "$kver" "/usr/lib/modules/$kver/initramfs.img"
+
+# Filesystem layout expected by bootc (bootcrew's shared/bootc-rootfs.sh)
+RUN sed -i 's|^HOME=.*|HOME=/var/home|' /etc/default/useradd && \
+    rm -rf /boot /home /root /usr/local /srv /opt /mnt /var /usr/lib/sysimage/log /usr/lib/sysimage/cache/pacman/pkg && \
+    mkdir -p /sysroot /boot /usr/lib/ostree /var && \
+    ln -sT sysroot/ostree /ostree && ln -sT var/roothome /root && ln -sT var/srv /srv && \
+    ln -sT var/opt /opt && ln -sT var/mnt /mnt && ln -sT var/home /home && ln -sT ../var/usrlocal /usr/local && \
+    for dir in opt home srv mnt usrlocal; do echo "d /var/$dir 0755 root root -"; done > /usr/lib/tmpfiles.d/bootc-base-dirs.conf && \
+    printf 'd /var/roothome 0700 root root -\nd /run/media 0755 root root -\n' >> /usr/lib/tmpfiles.d/bootc-base-dirs.conf && \
+    printf '[composefs]\nenabled = yes\n[sysroot]\nreadonly = true\n' > /usr/lib/ostree/prepare-root.conf
+
+LABEL containers.bootc=1
+RUN bootc container lint

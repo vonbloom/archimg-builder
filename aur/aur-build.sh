@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs inside the builder container as root. /repo is the published repository and
-# /packages.list the list of AUR packages to keep in it.
+# Runs inside the builder container as root. /repo is the published repository,
+# /packages.list the list of AUR packages to keep in it and /local the local PKGBUILDs.
 
 set -euo pipefail
 
@@ -36,10 +36,32 @@ echo "Syncing ${PACKAGES[*]}..."
 sudo -u builder aur sync --database "$REPO_NAME" --no-view --noconfirm --auto-key-retrieve \
 	"${PACKAGES[@]}"
 
-# Drop packages that are no longer listed nor needed as AUR dependencies
+# Local PKGBUILDs (local/<pkgname>/PKGBUILD in the checkout): packages the AUR lacks or builds
+# differently. aur build skips a package whose file for that version is already in the repository,
+# so a version is only built when its PKGBUILD changes (pkgver/pkgrel), and a failed build leaves the
+# previous one published. Their dependencies must be in the Arch repositories or in packages.list.
+LOCAL=()
+for dir in /local/*/; do
+	[[ -f $dir/PKGBUILD ]] || continue
+	name=$(basename "$dir")
+	LOCAL+=("$name")
+	echo "Building local package $name..."
+	install -d -o builder -g builder /home/builder/local
+	rm -rf "/home/builder/local/$name"
+	cp -r "$dir" "/home/builder/local/$name"
+	chown -R builder: "/home/builder/local/$name"
+	(cd "/home/builder/local/$name" &&
+		sudo -u builder aur build --database "$REPO_NAME" --syncdeps --noconfirm)
+done
+
+# Drop packages that are no longer listed (nor local) nor needed as AUR dependencies
 # (command substitutions, not process substitutions, so an AUR query failure aborts the run)
 depends=$(sudo -u builder aur depends --jsonl "${PACKAGES[@]}")
-wanted=$(aur format -f '%n\n' - <<<"$depends" | sort -u)
+wanted=$({
+	aur format -f '%n\n' - <<<"$depends"
+	((${#LOCAL[@]})) && printf '%s\n' "${LOCAL[@]}"
+	true
+} | sort -u)
 [[ -n $wanted ]] || { echo "Could not resolve the wanted packages"; exit 1; }
 current=$(sudo -u builder aur repo --database "$REPO_NAME" --list | cut -f1 | sort -u)
 mapfile -t STALE < <(comm -23 <(printf '%s\n' "$current" | grep .) <(printf '%s\n' "$wanted"))

@@ -1,0 +1,23 @@
+[Unit]
+Description=Container registry for the bootc images (build-bootc@<recipe>)
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/repo
+
+[Container]
+Image=docker.io/library/registry:2
+# Pulled and restarted by podman-auto-update.timer when a new image is published
+AutoUpdate=registry
+# bootc/prune runs garbage-collect in it by name
+ContainerName=distro-registry
+# Plain HTTP on the LAN: clients list it as insecure (bootc/overlay/etc/containers/registries.conf.d)
+PublishPort=5000:5000
+# bootc/prune deletes old images through the API
+Environment=REGISTRY_STORAGE_DELETE_ENABLED=true
+Volume=/mnt/repo/registry:/var/lib/registry:Z
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

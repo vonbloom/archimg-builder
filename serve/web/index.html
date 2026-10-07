@@ -154,6 +154,7 @@ function size(b) {
 }
 function unitTitle(u) {
   if (u.kind === "image") return `Imatge ${u.target}`;
+  if (u.kind === "bootc") return `Imatge bootc ${u.target}`;
   if (u.kind === "aur") return "Paquets AUR";
   if (u.kind === "iso") return "ISO instal·lador";
   return u.unit;
@@ -267,7 +268,9 @@ async function load() {
 
 // Manual builds (serve/build-trigger)
 async function startBuild(u, button) {
-  const queued = u.kind === "image" && data.units.some(x => x.kind === "image" && x.state === "running");
+  // arkdep and bootc images share /run/build-image.lock
+  const locked = x => x.kind === "image" || x.kind === "bootc";
+  const queued = locked(u) && data.units.some(x => locked(x) && x.state === "running");
   if (!confirm(`Vols llançar ara la build «${unitTitle(u)}»?` +
     (queued ? "\n\nJa hi ha una altra imatge en marxa: esperarà que acabi." : ""))) return;
   starting.add(u.unit); button.disabled = true; button.textContent = "Llançant…";

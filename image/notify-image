@@ -3,11 +3,13 @@
 # Report the newest image of a recipe to Home Assistant (notify-ha, from the homelab repo), with
 # the package changes since the previous image. A package count that drops by more than 20 % is
 # reported as a warning: arkdep-build can silently skip the package stage (see CLAUDE.md).
+# build-bootc@ uses it too: REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc.
 
 set -euo pipefail
 
 RECIPE=${1:?A recipe must be specified}
-REPO_PATH=/mnt/repo/$RECIPE
+REPO_PATH=${REPO_PATH:-/mnt/repo/$RECIPE}
+KIND=${KIND:-}  # word before "image" in the title, and the notification tag (default image-<recipe>)
 
 mapfile -t lists < <(find "$REPO_PATH" -maxdepth 1 -name '*.pkgs' | sort -r | head -2)
 new=${lists[0]:?no image found}
@@ -15,7 +17,8 @@ image=$(basename "$new" .pkgs)
 total=$(wc -l <"$new")
 kernel=$(awk '$1 ~ /^linux(-cachyos)?$/ { print $1, $2 }' "$new")
 message="$total packages, kernel ${kernel:-unknown}."
-status=info title="New image $image"
+name="${KIND:+$KIND }image"
+status=info title="New $name $image"
 
 if [[ -n ${lists[1]:-} ]]; then
 	old=${lists[1]}
@@ -29,8 +32,8 @@ if [[ -n ${lists[1]:-} ]]; then
 		}' "$old" "$new")
 	message+=" Since $(basename "$old" .pkgs): $updated updated, $added added, $removed removed."
 	if ((total * 5 < $(wc -l <"$old") * 4)); then
-		status=warning title="[WARNING] Image $image has far fewer packages than the previous one"
+		status=warning title="[WARNING] ${name^} $image has far fewer packages than the previous one"
 	fi
 fi
 
-NOTIFY_STATUS=$status /usr/local/sbin/notify-ha "$title" "$message" "image-$RECIPE"
+NOTIFY_STATUS=$status /usr/local/sbin/notify-ha "$title" "$message" "${KIND:-image}-$RECIPE"

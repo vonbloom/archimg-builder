@@ -9,14 +9,17 @@ new machine.
 | Tool | What it produces | Where it is published | When |
 |---|---|---|---|
 | [`image/`](#images-image) | arkdep images, one per device recipe | `http://192.168.2.50/<recipe>/` | weekly (Sunday 08:00 Europe/Madrid) |
+| [`bootc/`](#bootc-images-bootc) | bootc images of the same recipes (trial, not deployed yet) | registry `192.168.2.50:5000/<recipe>` | weekly (Sunday 13:00 Europe/Madrid) |
 | [`aur/`](#aur-repository-aur) | the pacman repository `[aur]` | `http://192.168.2.50/aur/` | daily (04:00 UTC) |
 | [`iso/`](#installer-iso-iso) | the installer ISO | `http://192.168.2.50/iso/` | by hand |
 
 ```
 image/    recipes (arkdep-build.d/), build, prune, notify-image
-aur/      packages.list, aur-build.sh, build
+bootc/    Containerfile and build-recipe.sh (the recipes as bootc images), build, prune, overlay/
+aur/      packages.list, local/ (own PKGBUILDs), aur-build.sh, build
 iso/      installer ISO: Containerfile, build, test-vm, airootfs/ (install.sh, arkdep.config)
-serve/    web server (nginx quadlet): /mnt/repo and the status page (web/, status-gen, build-trigger)
+serve/    web server (nginx quadlet): /mnt/repo and the status page (web/, status-gen, build-trigger);
+          container registry (quadlet) for the bootc images
 systemd/  build units and timers, distro-status (page data), distro-trigger (manual builds)
 lib/      builder.sh, shared by the build scripts
 install   sets up the build server
@@ -32,7 +35,8 @@ checkout `/home/admin/distro-builder`), never on the laptops. Requirements:
 - `/mnt/repo` mounted from the file server (NFS `192.168.2.10:/mnt/pool/repos/arkdep`): images,
   AUR packages and ISOs are written there and served from there;
 - `notify-ha` and the `notify-failure@.service` template, installed by the homelab repo (Ansible
-  role `notify_ha`), for the Home Assistant notifications.
+  role `notify_ha`), for the Home Assistant notifications;
+- port 5000 reachable from the LAN for the container registry (the bootc images).
 
 The VM is defined in the homelab repo and is rebuilt from scratch rather than backed up: Ansible
 creates it (`pve_guests`, cloud-init), clones this repository and runs `install` (play "Build
@@ -43,11 +47,12 @@ git clone https://github.com/vonbloom/distro-builder.git ~/distro-builder
 sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14s t480 ...
 ```
 
-`install` links the units in `systemd/` into `/etc/systemd/system`, the quadlet
-`serve/distro-repo.container` into `/etc/containers/systemd`, installs the polkit rule of the build
-trigger, enables `build-aur.timer`, one `build-image@<recipe>.timer` per recipe (default
-`p14s t480`), `distro-status.timer`, `distro-trigger.socket` and `podman-auto-update.timer`, and
-(re)starts the web server. It is idempotent: run it again to schedule other recipes, or after
+`install` links the units in `systemd/` into `/etc/systemd/system`, the quadlets
+`serve/distro-repo.container` and `serve/distro-registry.container` into `/etc/containers/systemd`,
+creates `/mnt/repo/registry` and `/mnt/repo/bootc`, installs the polkit rule of the build trigger,
+enables `build-aur.timer`, one `build-image@<recipe>.timer` and one `build-bootc@<recipe>.timer`
+per recipe (default `p14s t480`), `distro-status.timer`, `distro-trigger.socket` and
+`podman-auto-update.timer`, and (re)starts the web server and the registry. It is idempotent: run it again to schedule other recipes, or after
 changing `systemd/` or `serve/`.
 
 Every build unit pulls the checkout (`git pull --ff-only`, as `admin`) before building, so a
@@ -125,7 +130,8 @@ Every unit has `OnFailure=notify-failure@%n.service`, so a failed build sends a 
 Home Assistant with the end of its journal. A successful image build sends "New image ..." (tag
 `image-<recipe>`) with its package count, kernel and the changes since the previous image; it is
 sent as a warning when the package count drops by more than 20 % (see
-[Images](#sanity-check)).
+[Images](#sanity-check)). A bootc image build sends the same as "New bootc image ..." (tag
+`bootc-<recipe>`).
 
 ## Images (`image/`)
 
@@ -213,6 +219,11 @@ Prebuilt AUR packages for the `userland` distrobox, published as the pacman repo
   image after a full `pacman -Syu`, so packages always build against current libraries. The
   default repository path is `/mnt/repo/aur`; a test run works rootless anywhere:
   `aur/build /tmp/aur-test`.
+- Own PKGBUILDs go in `aur/local/<pkgname>/PKGBUILD`, for packages the AUR lacks or builds
+  differently (e.g. `bootc`, built without SELinux support). Do not list them in `packages.list`.
+  A local package is only built when its version (`pkgver`, `pkgrel`) is not in the repository
+  yet: a new upstream version is published by bumping it there, and a version that fails to build
+  leaves the previous one in place.
 - Scheduled daily by `build-aur.timer`; run it now with `sudo systemctl start build-aur` and
   follow it with `journalctl -fu build-aur`.
 - PKGBUILD changes are not reviewed: only list packages you trust.
@@ -231,6 +242,26 @@ pacman-key --lsign-key CF471E6685974BF43EA113623F9EBD77B1E60E55
 SigLevel = Required
 Server = http://192.168.2.50/aur
 ```
+
+## bootc images (`bootc/`)
+
+The same recipes as [bootc](https://github.com/bootc-dev/bootc) container images, a trial of
+bootc as a replacement for arkdep (no laptop uses them yet). `bootc/README.md` has the design and
+the results of the first tests in a VM.
+
+- `bootc/build <recipe>` builds `bootc/Containerfile` (which applies the arkdep recipe with
+  `build-recipe.sh` and installs `bootc` from `[aur]`), splits the image into per-package layers
+  with [chunkah](https://github.com/coreos/chunkah) and pushes it to the registry as
+  `<recipe>:YYYY-MM-DD` and `<recipe>:latest`. The package list goes to `/mnt/repo/bootc/<recipe>/`
+  for the notification.
+- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`) and garbage-collects the
+  registry. Both run under the same lock as the arkdep builds, one at a time.
+- Scheduled weekly by `build-bootc@<recipe>.timer`; run it now with
+  `sudo systemctl start build-bootc@p14s` and follow it with `journalctl -fu build-bootc@p14s`.
+- The registry (`serve/distro-registry.container`, `registry:2`, storage in `/mnt/repo/registry`)
+  serves plain HTTP on port 5000; the images list it as insecure in
+  `/etc/containers/registries.conf.d/50-distro-builder.conf`. A bootc system follows a recipe with
+  `bootc switch 192.168.2.50:5000/<recipe>:latest` and updates with `bootc upgrade`.
 
 ## Installer ISO (`iso/`)
 

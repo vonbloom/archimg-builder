@@ -25,6 +25,7 @@ podman run --rm --replace --name build-aur \
 	-v "$(pwd)"/aur-build.sh:/usr/bin/aur-build.sh:ro,Z \
 	-v "$(pwd)"/makepkg.conf:/etc/makepkg.conf.d/aur-builder.conf:ro,Z \
 	-v "$(pwd)"/packages.list:/packages.list:ro,Z \
+	-v "$(pwd)"/local:/local:ro,Z \
 	-v "$REPO_PATH":/repo:Z \
 	"$BUILDER_IMAGE"
 

@@ -1,5 +1,6 @@
 # AUR packages to build and publish in the [aur] repository, one per line.
-# AUR dependencies are pulled in automatically.
+# AUR dependencies are pulled in automatically. Packages built from a local PKGBUILD
+# (local/<pkgname>/PKGBUILD, e.g. bootc) must not be listed here.
 visual-studio-code-bin
 ledger-live-bin
 auto-cpufreq

@@ -70,6 +70,8 @@ def epoch(value):
 def unit_kind(unit):
     if unit.startswith("build-image@"):
         return "image", unit[len("build-image@") : -len(".service")]
+    if unit.startswith("build-bootc@"):
+        return "bootc", unit[len("build-bootc@") : -len(".service")]
     if unit == "build-aur.service":
         return "aur", None
     if unit == "build-iso.service":
@@ -78,7 +80,7 @@ def unit_kind(unit):
 
 
 def build_units():
-    """Build units with a timer (build-aur, build-image@<recipe>) plus build-iso (manual)."""
+    """Build units with a timer (build-aur, build-image@ and build-bootc@<recipe>) plus build-iso (manual)."""
     out = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", "--type=timer", "build-*"])
     timers = sorted(line.split()[0] for line in out.splitlines() if line.strip())
     units = [t[: -len(".timer")] + ".service" for t in timers]
