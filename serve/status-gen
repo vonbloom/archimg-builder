@@ -5,7 +5,8 @@ Runs as root every minute (distro-status.timer): reads the build units from syst
 journal, and the files published under /mnt/repo, and writes to the output directory (default
 /run/distro-status, served at /status/):
 
-  status.json        units, images per recipe with package changes, [aur] packages, ISO, storage
+  status.json        units, images per recipe with package changes (arkdep from /mnt/repo, bootc
+                     from the registry), [aur] packages, ISO, storage
   recipes.txt        one recipe per line (read by the installer to offer a recipe menu)
   logs/<unit>.txt    journal of the last run of each build unit
 
@@ -20,8 +21,15 @@ import socket
 import subprocess
 import tempfile
 import time
+import urllib.request
 
 LOG_LINES = 1500
+REGISTRY = "http://localhost:5000"  # serve/distro-registry.container (bootc images)
+MANIFEST_TYPES = ", ".join([
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+])
+DATE_TAG = re.compile(r"\d{4}-\d{2}-\d{2}")
 CHECKOUT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 UNIT_PROPS = [
@@ -206,8 +214,59 @@ def recipe_images(repo, recipe):
     return images
 
 
+def registry_get(path, accept=None):
+    """(parsed JSON, Docker-Content-Digest) of a registry API path."""
+    req = urllib.request.Request(REGISTRY + path, headers={"Accept": accept} if accept else {})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return json.load(r), r.headers.get("Docker-Content-Digest")
+
+
+def bootc_images(repo):
+    """bootc images per recipe in the registry (dated tags, newest first), with the package changes
+    from the lists bootc/build writes to <repo>/bootc/<recipe>/. Empty if the registry is down."""
+    try:
+        names = registry_get("/v2/_catalog")[0].get("repositories") or []
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for name in sorted(names):
+        try:
+            tags = registry_get(f"/v2/{name}/tags/list")[0].get("tags") or []
+            latest = registry_get(f"/v2/{name}/manifests/latest", MANIFEST_TYPES)[1] if "latest" in tags else None
+        except (OSError, ValueError):
+            continue
+        images = []
+        for tag in sorted((t for t in tags if DATE_TAG.fullmatch(t)), reverse=True):
+            try:
+                manifest, digest = registry_get(f"/v2/{name}/manifests/{tag}", MANIFEST_TYPES)
+                config = registry_get(f"/v2/{name}/blobs/{manifest['config']['digest']}")[0]
+            except (OSError, ValueError, KeyError):
+                continue
+            created = epoch(config.get("created"))
+            pkgs = read_pkgs(os.path.join(repo, "bootc", name, f"{name}-{tag}.pkgs"))
+            kernel = next(([k, pkgs[k]] for k in ("linux-cachyos", "linux") if pkgs and k in pkgs), None)
+            images.append({
+                "tag": tag,
+                "created": created,
+                "size": sum(layer["size"] for layer in manifest.get("layers", [])),
+                "layers": len(manifest.get("layers", [])),
+                "latest": digest is not None and digest == latest,
+                "packages": len(pkgs) if pkgs is not None else None,
+                "kernel": kernel,
+                "_pkgs": pkgs,
+            })
+        for i, img in enumerate(images):
+            prev = images[i + 1]["_pkgs"] if i + 1 < len(images) else None
+            img["diff"] = pkg_diff(prev, img["_pkgs"]) if prev is not None and img["_pkgs"] is not None else None
+        for img in images:
+            del img["_pkgs"]
+        out[name] = images
+    return out
+
+
 def aur_packages(repo):
-    """Newest file of each package in the [aur] repository; listed = in aur/packages.list."""
+    """Newest file of each package in the [aur] repository. origin: list (aur/packages.list),
+    local (aur/local/<name>/PKGBUILD) or dependency."""
     base = os.path.join(repo, "aur")
     listed = set()
     try:
@@ -215,6 +274,11 @@ def aur_packages(repo):
             listed = {line.split("#")[0].strip() for line in f} - {""}
     except OSError:
         pass
+    local_dir = os.path.join(CHECKOUT, "aur", "local")
+    try:
+        local = {d for d in os.listdir(local_dir) if os.path.isfile(os.path.join(local_dir, d, "PKGBUILD"))}
+    except OSError:
+        local = set()
     newest = {}
     try:
         files = os.listdir(base)
@@ -229,8 +293,9 @@ def aur_packages(repo):
         pkg, ver, rel, _arch = parts
         mtime = int(os.stat(os.path.join(base, name)).st_mtime)
         if pkg not in newest or mtime > newest[pkg]["mtime"]:
+            origin = "local" if pkg in local else "list" if pkg in listed else "dependency"
             newest[pkg] = {"name": pkg, "version": f"{ver}-{rel}", "mtime": mtime,
-                           "listed": pkg in listed, "file": name}
+                           "origin": origin, "file": name}
     try:
         updated = int(os.stat(os.path.join(base, "aur.db.tar.zst")).st_mtime)
     except OSError:
@@ -302,6 +367,7 @@ def main():
         "storage": {"total": st.f_blocks * st.f_frsize, "free": st.f_bavail * st.f_frsize},
         "units": statuses,
         "recipes": {r: recipe_images(args.repo, r) for r in recipes},
+        "bootc": bootc_images(args.repo),
         "aur": aur_packages(args.repo),
         "iso": isos(args.repo),
     }

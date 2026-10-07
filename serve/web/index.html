@@ -35,8 +35,9 @@ header { align-items: center; }
 h2 { font-size: 17px; margin: 28px 0 10px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-.card h3 { margin: 0 0 6px; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
-.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; }
+.card h3 { margin: 0 0 6px; font-size: 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; flex: none; }
+.pill.latest { background: var(--accent); margin-left: 6px; }
 .pill.ok { background: var(--ok); } .pill.running { background: var(--run); }
 .pill.failed { background: var(--fail); } .pill.never { background: var(--never); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
@@ -215,6 +216,29 @@ function renderImages() {
     if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 7, class: "muted" }, "Cap imatge publicada.")));
     parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
   }
+  // bootc images: tags in the registry (port 5000 of this host), package lists under /bootc/
+  for (const [recipe, images] of Object.entries(data.bootc || {})) {
+    parts.push(h("h2", {}, `Imatges bootc ${recipe}`));
+    const ref = `${location.hostname}:5000/${recipe}`;
+    parts.push(h("p", { class: "muted small" }, "Al registre: ", h("code", {}, `${ref}:latest`)));
+    const rows = [h("tr", {}, ["Etiqueta", "Publicada", "Mida", "Capes", "Paquets", "Kernel", "Canvis", ""].map(t => h("th", {}, t)))];
+    for (const img of images) {
+      const key = `bootc/${recipe}/${img.tag}`;
+      const toggle = () => { openDiffs.has(key) ? openDiffs.delete(key) : openDiffs.add(key); renderImages(); };
+      rows.push(h("tr", {},
+        h("td", { class: "mono", title: `${ref}:${img.tag}` }, img.tag, img.latest ? h("span", { class: "pill latest" }, "latest") : null),
+        h("td", { title: when(img.created) }, ago(img.created)),
+        h("td", { class: "num", title: "Comprimida, al registre" }, size(img.size)),
+        h("td", { class: "num" }, img.layers),
+        h("td", { class: "num" }, img.packages ?? "—"),
+        h("td", { class: "mono" }, img.kernel ? img.kernel[1] : "—"),
+        h("td", img.diff ? { onclick: toggle, title: "Mostra els canvis respecte de la imatge anterior" } : {}, diffSummary(img.diff)),
+        h("td", {}, h("a", { href: `/bootc/${recipe}/${recipe}-${img.tag}.pkgs` }, "paquets"))));
+      if (img.diff && openDiffs.has(key)) rows.push(h("tr", { class: "detail" }, h("td", { colspan: 8 }, diffDetail(img.diff))));
+    }
+    if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 8, class: "muted" }, "Cap imatge publicada.")));
+    parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
+  }
   box.replaceChildren(...parts);
 }
 
@@ -237,7 +261,7 @@ function renderAur() {
     h("td", { class: "mono" }, h("a", { href: `/aur/${p.file}` }, p.name)),
     h("td", { class: "mono" }, p.version),
     h("td", { title: when(p.mtime) }, ago(p.mtime)),
-    h("td", { class: "muted" }, p.listed ? "packages.list" : "dependència")));
+    h("td", { class: "muted" }, { list: "packages.list", local: "PKGBUILD local" }[p.origin] ?? "dependència")));
   document.getElementById("aur").replaceChildren(...rows);
 }
 
@@ -250,7 +274,7 @@ function renderMeta() {
     h("span", { title: `${size(st.free)} lliures de ${size(st.total)}` },
       ` · repositori ${size(used)} / ${size(st.total)}`,
       h("div", { class: "bar" }, h("div", { style: `width:${(100 * used / st.total).toFixed(1)}%` }))));
-  document.getElementById("dirs").replaceChildren(...[...Object.keys(data.recipes), "aur", "iso"]
+  document.getElementById("dirs").replaceChildren(...[...Object.keys(data.recipes), ...(Object.keys(data.bootc || {}).length ? ["bootc"] : []), "aur", "iso"]
     .flatMap((d, i) => [i ? " · " : "", h("a", { href: `/${d}/` }, `/${d}/`)]));
 }
 
