@@ -195,9 +195,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
   themed components belong in that hook.
 - **Memory tuning** (`depends/generic`) is a hand-picked subset of `cachyos-settings` (the package
   itself is not installed: it pulls `ananicy-cpp` and gaming/NVIDIA tweaks): `sysctl.d/99-optimizations.conf`,
-  zram as big as RAM, `udev/rules.d/30-zram.rules` (zswap off once zram is up), `tmpfiles.d/thp.conf`
-  and `systemd-oomd` with per-slice defaults (`system.slice.d`, `user-.slice.d`). Compare with
-  the current package (`pacman -Sp cachyos-settings`) when revisiting it.
+  zram as big as RAM, `udev/rules.d/30-zram.rules` (zswap off once zram is up) and
+  `tmpfiles.d/thp.conf`. Compare with the current package (`pacman -Sp cachyos-settings`) when
+  revisiting it. Its `systemd-oomd` slice defaults are left out on purpose: oomd kills whole leaf
+  cgroups, and the `userland` distrobox is a single podman scope holding Brave, VS Code and the
+  terminals, so it would be the likely victim when dev containers exhaust memory.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
