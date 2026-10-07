@@ -16,3 +16,11 @@ Type=ether
 
 [Network]
 DHCP=yes
+
+# Prefer Ethernet (the dock) over Wi-Fi: lower metric than 80-wifi.network, whose default route
+# stays as a ready fallback
+[DHCPv4]
+RouteMetric=100
+
+[IPv6AcceptRA]
+RouteMetric=100

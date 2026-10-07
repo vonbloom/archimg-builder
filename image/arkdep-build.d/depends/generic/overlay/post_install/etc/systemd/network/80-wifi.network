@@ -16,3 +16,10 @@ SSID=*
 
 [Network]
 DHCP=yes
+
+# Higher metric than 89-ethernet.network: Wi-Fi only carries traffic when there is no Ethernet
+[DHCPv4]
+RouteMetric=600
+
+[IPv6AcceptRA]
+RouteMetric=600
