@@ -205,6 +205,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
   (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
   `fc-list ":charset=<hex>"`.
+- **Waybar config**: module settings and the layout live in `/etc/xdg/waybar/bar.jsonc`;
+  `config.jsonc` only lists the bars per output and includes it. The external monitors' bar
+  overrides `modules-right` without `backlight` (keys in the including bar win), so add or remove
+  right-side modules in both lists. Test a change with `waybar -c <copy>/config.jsonc` (rewrite the
+  absolute include path to the copy).
 
 ## Verifying changes without building
 
