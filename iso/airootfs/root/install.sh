@@ -86,7 +86,7 @@ mkfs.fat -F 32 -n "$ESP_LABEL" "$esp"
 mkfs.btrfs -f -L "$ROOT_LABEL" "$root"
 
 # arkdep works on the top level subvolume; it expects the ESP at <root>/boot
-mount -o compress=zstd "$root" $MNT
+mount -o compress=zstd:1,noatime "$root" $MNT
 mkdir $MNT/boot
 mount -o fmask=0077,dmask=0077 "$esp" $MNT/boot
 
@@ -162,14 +162,16 @@ chmod 700 "$home"
 # Wi-Fi networks joined from the live system
 [[ -d /var/lib/iwd ]] && cp -r /var/lib/iwd "$rootfs/var/lib/"
 
+# btrfs takes compress= from the first mount only, the root (rootflags in systemd-boot.template):
+# here it only documents the intent. noatime is per mount point and does apply.
 cat >"$etc/fstab" <<EOF
-LABEL=$ROOT_LABEL  /home             btrfs  rw,relatime,subvol=arkdep/shared/home,compress=zstd     0 1
-LABEL=$ROOT_LABEL  /root             btrfs  rw,relatime,subvol=arkdep/shared/root,compress=zstd     0 1
-LABEL=$ROOT_LABEL  /arkdep           btrfs  rw,relatime,subvol=arkdep,compress=zstd                 0 1
-LABEL=$ROOT_LABEL  /var/lib/flatpak  btrfs  rw,relatime,subvol=arkdep/shared/flatpak,compress=zstd  0 1
-LABEL=$ROOT_LABEL  /swap             btrfs  subvol=/swap,defaults,noatime                           0 0
-LABEL=$ESP_LABEL   /boot             vfat   rw,relatime,fmask=0022,dmask=0022,codepage=437          0 2
-/swap/swapfile     none              swap   defaults,pri=10                                         0 0
+LABEL=$ROOT_LABEL  /home             btrfs  rw,noatime,subvol=arkdep/shared/home,compress=zstd:1     0 1
+LABEL=$ROOT_LABEL  /root             btrfs  rw,noatime,subvol=arkdep/shared/root,compress=zstd:1     0 1
+LABEL=$ROOT_LABEL  /arkdep           btrfs  rw,noatime,subvol=arkdep,compress=zstd:1                 0 1
+LABEL=$ROOT_LABEL  /var/lib/flatpak  btrfs  rw,noatime,subvol=arkdep/shared/flatpak,compress=zstd:1  0 1
+LABEL=$ROOT_LABEL  /swap             btrfs  subvol=/swap,defaults,noatime                             0 0
+LABEL=$ESP_LABEL   /boot             vfat   rw,relatime,fmask=0022,dmask=0022,codepage=437            0 2
+/swap/swapfile     none              swap   defaults,pri=10                                           0 0
 EOF
 
 umount -R $MNT

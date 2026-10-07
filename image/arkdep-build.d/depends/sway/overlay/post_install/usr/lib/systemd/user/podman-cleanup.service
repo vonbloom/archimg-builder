@@ -1,0 +1,9 @@
+[Unit]
+Description=Remove unused podman images and old VS Code dev container servers
+After=podman.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/podman-cleanup
+Nice=19
+IOSchedulingClass=idle

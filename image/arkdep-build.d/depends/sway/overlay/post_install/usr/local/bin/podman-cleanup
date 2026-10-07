@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Monthly cleanup of the user's podman storage (user unit podman-cleanup.timer):
+# - images not used by any container (running or stopped) and created more than 30 days ago.
+#   Dev container base images are pulled again on the next rebuild.
+# - VS Code server versions in the "vscode" volume shared by the dev containers, except the newest
+#   one and any version still running, and extension downloads (extensionsCache) older than 30
+#   days. VS Code installs a new server there on every update and never removes the old ones.
+# Containers and volumes are never removed. The volume files belong to subordinate UIDs, hence
+# podman unshare.
+set -euo pipefail
+
+podman image prune --all --force --filter until=720h
+
+vol=$(podman volume inspect vscode --format '{{.Mountpoint}}' 2>/dev/null) || exit 0
+bin=$vol/vscode-server/bin/linux-x64
+cache=$vol/vscode-server/extensionsCache
+
+if podman unshare test -d "$bin"; then
+	keep=$({
+		podman unshare ls -t "$bin" | head -1
+		pgrep -af 'vscode-server/bin/linux-x64/' | grep -o 'linux-x64/[0-9a-f]\{40\}' | cut -d/ -f2 || true
+	} | sort -u)
+	for version in $(podman unshare ls "$bin"); do
+		grep -qx "$version" <<<"$keep" && continue
+		echo "Removing VS Code server $version"
+		podman unshare rm -rf "${bin:?}/$version"
+	done
+fi
+if podman unshare test -d "$cache"; then
+	podman unshare find "$cache" -maxdepth 1 -type f -mtime +30 -print -delete
+fi

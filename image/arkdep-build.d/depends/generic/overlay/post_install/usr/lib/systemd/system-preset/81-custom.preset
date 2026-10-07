@@ -18,5 +18,7 @@ enable virtlogd.socket
 
 # Timers
 enable btrbk.timer
+# Monthly scrub of the whole btrfs filesystem (instance "-" is /, any mount point scrubs all of it)
+enable btrfs-scrub@.timer -
 
 disable *

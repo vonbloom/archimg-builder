@@ -3,4 +3,4 @@ linux /arkdep/%target%/vmlinuz
 initrd /amd-ucode.img
 initrd /intel-ucode.img
 initrd /arkdep/%target%/initramfs-linux.img
-options root="LABEL=@ROOT_LABEL@" rootflags=subvol=/arkdep/deployments/%target%/rootfs rw quiet splash loglevel=3 rd.systemd.show_status=false rd.udev.log_level=3 lsm=landlock,lockdown,yama,integrity,apparmor,bpf transparent_hugepage=madvise @RESUME@
+options root="LABEL=@ROOT_LABEL@" rootflags=subvol=/arkdep/deployments/%target%/rootfs,compress=zstd:1,noatime rw quiet splash loglevel=3 rd.systemd.show_status=false rd.udev.log_level=3 lsm=landlock,lockdown,yama,integrity,apparmor,bpf transparent_hugepage=madvise @RESUME@

@@ -1,0 +1,11 @@
+[Unit]
+Description=Monthly podman storage cleanup
+
+[Timer]
+OnCalendar=monthly
+RandomizedDelaySec=1h
+# The user manager only runs while logged in: catch up on the next login
+Persistent=true
+
+[Install]
+WantedBy=timers.target

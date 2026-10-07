@@ -18,6 +18,7 @@ systemd/  build-image@.{service,timer}, build-aur.{service,timer}, build-iso.ser
           distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
           sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg)
+docs/     todo.md: pending improvements (boot time, storage, memory)
 keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also
           podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
@@ -177,6 +178,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
   several servers in `common/mirrorlist`.
 - **Migrated files keep numeric GIDs** (`cp -p`): e.g. `wg0.key` is `root:systemd-network` (977, a
   dynamic sysusers GID). If an image changes that GID, networkd cannot read the key.
+- **btrfs scrub**: `btrfs-scrub@-.timer` (monthly, from `btrfs-progs`, enabled in `81-custom.preset`)
+  scrubs the whole filesystem; on a single device it detects corruption but can only repair
+  metadata (DUP).
 - **Journal**: `/var/log/journal` is per deployment; capped with `SystemMaxUse=1G` in
   `depends/generic/.../journald.conf.d/50-size.conf` (default would be 4 GiB each).
 - **Menus**: every system menu is a rofi script in `depends/sway/.../usr/local/bin` (e.g.
@@ -200,6 +204,15 @@ How `arkdep-build` processes a recipe (relevant constraints):
   revisiting it. Its `systemd-oomd` slice defaults are left out on purpose: oomd kills whole leaf
   cgroups, and the `userland` distrobox is a single podman scope holding Brave, VS Code and the
   terminals, so it would be the likely victim when dev containers exhaust memory.
+- **btrfs mount options**: compression (and other filesystem-wide options) is taken from the
+  first mount only, the root from `rootflags=` in the boot template. `compress=` in fstab is
+  ignored: until 2026-10-07 the laptop had `compress=zstd` in fstab and no compression at all.
+  Both `iso/airootfs/root/systemd-boot.template` and fstab use `compress=zstd:1,noatime`;
+  `noatime` is per mount point, so it does belong in fstab.
+- **Podman storage** (`podman-cleanup.timer`, user, monthly, sway layer): removes images unused
+  by any container for 30 days and old VS Code server versions in the dev containers' shared
+  `vscode` volume (VS Code adds one per update and never removes them: 10 versions, 6 GB in
+  2026-10). It never removes containers or volumes.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and

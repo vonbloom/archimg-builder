@@ -278,6 +278,7 @@ What the installer does:
 | arkdep | `arkdep init` with `ARKDEP_ROOT=/mnt`, `/arkdep/config` from `iso/airootfs/root/arkdep.config` (with the chosen recipe as default), then `arkdep deploy <recipe>` |
 | Boot | systemd-boot; entries from the template in `/arkdep/templates/systemd-boot` (kernel options in `install.sh`), only the microcode the image ships |
 | User | `roger` (UID 1000, zsh) in `wheel input video render audio kvm libvirt`, with the group IDs read from the image; subuid/subgid `100000:65536` for rootless podman; home in the shared `/home` subvolume |
+| Filesystem | btrfs with `compress=zstd:1` and `noatime`: in `rootflags=` of the boot template (btrfs takes compression from the first mount, the root) and in fstab |
 | fstab | shared subvolumes `/home`, `/root`, `/arkdep`, `/var/lib/flatpak`, `/swap`, the ESP on `/boot` |
 
 `iso/airootfs/root/arkdep.config` and `iso/airootfs/root/systemd-boot.template` are the reference
