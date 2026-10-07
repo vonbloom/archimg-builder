@@ -193,6 +193,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `light` and the wallpaper folder (`pickwall`: `~/.local/share/wallpapers/{dia,nit}`). Waybar,
   foot and VS Code (no `window.autoDetectColorScheme` in the dotfiles) stay dark on purpose. New
   themed components belong in that hook.
+- **Memory tuning** (`depends/generic`) is a hand-picked subset of `cachyos-settings` (the package
+  itself is not installed: it pulls `ananicy-cpp` and gaming/NVIDIA tweaks): `sysctl.d/99-optimizations.conf`,
+  zram as big as RAM, `udev/rules.d/30-zram.rules` (zswap off once zram is up), `tmpfiles.d/thp.conf`
+  and `systemd-oomd` with per-slice defaults (`system.slice.d`, `user-.slice.d`). Compare with
+  the current package (`pacman -Sp cachyos-settings`) when revisiting it.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and

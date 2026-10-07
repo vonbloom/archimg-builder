@@ -1,0 +1,3 @@
+# With zram swap, zswap only compresses pages twice (into its pool, then into zram when the pool
+# is full): disable it once zram0 is set up (from cachyos-settings).
+ACTION=="change", KERNEL=="zram0", ATTR{initstate}=="1", RUN+="/bin/sh -c 'echo N > /sys/module/zswap/parameters/enabled'"
