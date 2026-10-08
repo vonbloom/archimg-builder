@@ -250,8 +250,8 @@ Server = http://192.168.2.50/aur
 ## bootc images (`bootc/`)
 
 The same recipes as [bootc](https://github.com/bootc-dev/bootc) container images, a trial of
-bootc as a replacement for arkdep (no laptop uses them yet). `bootc/README.md` has the design and
-the results of the first tests in a VM.
+bootc as a replacement for arkdep: while both are compared, the T480 runs bootc and the P14s stays
+on arkdep. `bootc/README.md` has the design and the results of the tests in a VM.
 
 - `bootc/build <recipe>` builds `bootc/Containerfile` (which applies the arkdep recipe with
   `build-recipe.sh` and installs `bootc` from `[aur]`), splits the image into per-package layers
@@ -271,17 +271,61 @@ the results of the first tests in a VM.
   serves plain HTTP on port 5000; the images list it as insecure in
   `/etc/containers/registries.conf.d/50-distro-builder.conf`. A bootc system follows a recipe with
   `bootc switch 192.168.2.50:5000/<recipe>:latest` and updates with `bootc upgrade`.
-- `bootc/install` installs an image on existing partitions from the installer ISO (boot it with
-  `cow_spacesize=2G` on the kernel line; run as root): it formats the root partition (btrfs), reuses
-  the ESP (systemd-boot, first in the firmware boot order), keeps a `/home` partition (mounted at
-  `/var/home`, the user's directory must belong to `--uid`), enables a swap partition for
-  hibernation, and creates the user, hostname and Wi-Fi profile:
+- `bootc/install` installs an image on existing partitions from the installer ISO, keeping a
+  `/home` partition: see below.
 
-  ```sh
-  curl -O https://raw.githubusercontent.com/vonbloom/distro-builder/main/bootc/install
-  bash install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
-      --home /dev/nvme0n1p4 --swap /dev/nvme0n1p2 --hostname anubis --wifi Sputnik.psk
-  ```
+### Installing a bootc image (keeping /home)
+
+`bootc/install` formats the root partition (btrfs, `zstd:1`, `noatime`), reuses the ESP
+(systemd-boot, first in the firmware boot order, a 5 s menu; other loaders stay), keeps the `/home`
+partition untouched (mounted at `/var/home`), enables a swap partition for hibernation, and creates
+the user (UID 1000, the arkdep installer's groups), the hostname and the Wi-Fi profile. Written for
+the T480 (Artix: ESP `p1`, swap `p2`, root `p3`, ext4 home `p4`) and rehearsed in a VM with the same
+layout.
+
+Before, on the old system:
+
+1. Back up what cannot be lost: the root partition is formatted (the home partition is not, but a
+   wrong partition name would be).
+2. The user's directory on the home partition must belong to UID 1000 (`--uid` otherwise).
+3. Copy the Wi-Fi profile into it (iwd keeps it in a root-only directory):
+   `sudo install -m 600 -o roger -g roger /var/lib/iwd/<SSID>.psk ~/`.
+4. Note the partitions: `lsblk -f`.
+
+Install:
+
+1. Write the installer ISO to a USB stick (step 1 of "Installing a machine" below) and boot it in
+   UEFI mode (ThinkPad: F12). At the boot menu press `e` and add `cow_spacesize=2G` to the kernel
+   options: the live system installs podman (the image goes to a tmpfs, ~5 GB of RAM).
+2. Network: a cable, or `iwctl station wlan0 connect <SSID>`.
+3. Download and run the installer (it lists the disk, asks to type the root partition to confirm,
+   and asks the user's password twice):
+
+   ```sh
+   curl -O https://raw.githubusercontent.com/vonbloom/distro-builder/main/bootc/install
+   bash install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
+       --home /dev/nvme0n1p4 --swap /dev/nvme0n1p2 --hostname anubis --wifi <SSID>.psk
+   ```
+
+   It stops before formatting anything if a partition, the user's directory or the Wi-Fi file is
+   wrong, and can be run again after a failure.
+4. Reboot and remove the USB stick.
+
+First session:
+
+1. Log in on tty1: sway starts.
+2. If the home partition has an older `~/.dotfiles` checkout, update it (`git stash` local changes
+   first) and restow: `cd ~/.dotfiles && git pull && ./install`. `deploy-userland` only clones the
+   dotfiles when `~/.dotfiles` is missing, and only creates the distroboxes from
+   `~/.config/distrobox/default.ini`.
+3. `systemctl --user start deploy-userland` (it also runs at every login) creates `playground` and
+   `userland` and exports the apps. It takes minutes: do not log out or reboot until the
+   "Sistema a punt" notification (an interrupted box is created again at the next login).
+4. Check: `sudo bootc status` (the image and its tag), `systemctl --failed`.
+
+Afterwards, updates are staged by `bootc-update.timer` and shown by the waybar indicator (see
+above), and start on the next boot. The boot menu lists each image as `Arch Linux (<recipe> <tag>)`
+with the previous one as a fallback; `sudo bootc rollback` makes the previous one the default.
 
 ## Installer ISO (`iso/`)
 
