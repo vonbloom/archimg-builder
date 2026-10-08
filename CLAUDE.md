@@ -186,8 +186,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
   just created it with every line commented out (no menu). Rehearsed in a VM booted from the ISO
   with a T480-like layout (2026-10-08).
 - Boot entry titles: bootc uses `PRETTY_NAME` and `VERSION_ID` of the image's `/usr/lib/os-release`;
-  the Containerfile sets them to `Arch Linux (<recipe> <date>)` and the date (`VERSION` build arg
-  from `bootc/build`), and links `/etc/os-release` to it (the Arch container image ships its own
+  the Containerfile sets them to `Arch Linux (<recipe> <tag>)` and `<tag>.<HHMM>` (`VERSION` and
+  `VERSION_ID` build args from `bootc/build`; systemd-boot appends the version to equal titles, two
+  builds of a day), and links `/etc/os-release` to it (the Arch container image ships its own
   copy).
 
 ## Installer ISO (`iso/`)

@@ -14,10 +14,11 @@ RECIPE=${1:?A recipe must be specified}
 REGISTRY=${REGISTRY:-localhost:5000}
 PKGS_DIR=${PKGS_DIR:-/mnt/repo/bootc/$RECIPE}
 CHUNKAH=${CHUNKAH:-quay.io/coreos/chunkah:latest}
-TAG=$(date +%Y-%m-%d)
+read -r TAG BUILD_TIME < <(date +'%Y-%m-%d %H%M')
 IMAGE=localhost/bootc-$RECIPE
 
-build_args=(--build-arg "RECIPE=$RECIPE" --build-arg "VERSION=$TAG")
+# The boot menu shows the tag; the time tells apart two builds of the same day
+build_args=(--build-arg "RECIPE=$RECIPE" --build-arg "VERSION=$TAG" --build-arg "VERSION_ID=$TAG.$BUILD_TIME")
 [[ -n ${AUR_SERVER:-} ]] && build_args+=(--build-arg "AUR_SERVER=$AUR_SERVER")
 [[ -n ${AUR_SIGLEVEL:-} ]] && build_args+=(--build-arg "AUR_SIGLEVEL=$AUR_SIGLEVEL")
 
