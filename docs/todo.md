@@ -228,12 +228,15 @@ Upstream issues with a local workaround, to drop when they are fixed in a bootc 
 
 ## Storage
 
-- [ ] **Compress the existing data.** `compress=zstd:1` (2026-10-07, active on the P14s since the
-      p14s-2026-10-07 deployment, 2026-10-08) only applies to new writes;
-      the installer compressed the first deployment, everything written since then is not.
-      `btrfs filesystem defragment -r -czstd /home` would compress `/home`, but it unshares the
-      extents with the btrbk snapshots of `~/.gnupg` (small) and rewrites every file (SSD
-      writes). Check the gain first with `compsize /home` (package `compsize`, as root).
+- [x] **Compress the existing data: not done (decided 2026-10-09).** `compress=zstd:1`
+      (2026-10-07, active on the P14s since the p14s-2026-10-07 deployment, 2026-10-08) only
+      applies to new writes. `sudo compsize -x /home` on 2026-10-09: 76 GB on disk, of which 2.4 GB
+      written since then is zstd (37 %) and 75 GB uncompressed, but 127 GB referenced: ~50 GB are
+      extents shared between files (reflinks). `btrfs filesystem defragment -r -czstd /home` would
+      unshare them (the disk usage could grow) and rewrite ~75 GB on the SSD, for a modest gain
+      (container layers, ISOs, browser cache and downloads compress little), with `/home` 25 %
+      full (356 GB free). Files rewritten from now on get compressed anyway. If one large,
+      compressible directory without reflinks ever matters, defragment only that one.
 - [ ] Stopped podman containers kept by `podman-cleanup`: decide on the old dev containers
       (`beautiful_boyd`: tramit-api-next, 6 months; `hopeful_dhawan`: tramit-csv, 2 months) and
       the `playground` distrobox (`podman rm`, `distrobox rm`).
