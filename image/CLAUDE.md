@@ -122,7 +122,10 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Lid and suspend** (`depends/generic/.../etc/systemd/logind.conf`): the lid suspends only on
   battery (`HandleLidSwitchExternalPower=ignore`): logind counts as docked only while an external
   display is connected, so turning off the P14s' monitors on the dock (lid closed) suspended it.
-  `IdleAction=suspend` never fires: no session sets an idle hint. swayidle only locks (10 min).
+  `IdleAction=ignore`: logind's idle suspend (it was `suspend` after 15 min) never saw a sway
+  session as idle (no idle hint) but did act with no session at all, at the login prompt or over
+  SSH (the T480 on its charger, reached by SSH, suspended). swayidle locks after 10 min and, on
+  battery only (`systemd-ac-power || systemctl suspend`), suspends after 15 min.
 - **Secret Service** (sway layer, since 2026-10-08): `gnome-keyring` (11 MB with gcr and gcr-4;
   `oo7` has fewer dependencies but takes 25 MB and is 0.6), started by
   `gnome-keyring-daemon.socket` (user preset) and unlocked at the tty login by `pam_gnome_keyring`

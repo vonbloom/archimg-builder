@@ -9,8 +9,12 @@ Type=simple
 # -w espera que el procés de bloqueig acabi abans de continuar (important per a la suspensió)
 # timeout 600: Bloqueja la pantalla als 10 minuts (600 segons)
 # before-sleep: Bloqueja la pantalla si suspens el sistema manualment (p. ex. tancant la tapa del portàtil)
+# timeout 900: on battery only, suspend after 15 minutes idle (systemd-ac-power is true on AC: a
+# docked or charging laptop only suspends when told). Idle inhibitors (e.g. a playing video) hold it
+# off. logind's own IdleAction is off: it cannot see sway's activity (etc/systemd/logind.conf)
 ExecStart=/usr/bin/swayidle -w \
     timeout 600 'swaylock -f -c 000000' \
+    timeout 900 'systemd-ac-power || systemctl suspend' \
     before-sleep 'swaylock -f -c 000000'
 
 # Reinicia el servei automàticament si peta
