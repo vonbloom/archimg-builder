@@ -157,10 +157,53 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       `--build-arg` of its install step, so a new package version invalidates that layer and the
       ones above. Arch updates the base nearly every week; the gain is for changes in the desktop
       or device layers and for reruns in the same week. Nothing changed: no new tag, no notification.
-- [ ] VM 202 memory 8 -> 12 GB (homelab `host_vars/zeus.yml`, `qm set 202 --memory 12288`).
+- [ ] VM 202 memory 8 -> 12 GB (homelab `host_vars/zeus.yml`, `qm set 202 --memory 12288`). Less
+      pressing since the skopeo push: a bootc build peaks at 3 GB.
 - [ ] Optional: pacman package cache across builds (`RUN --mount=type=cache`), ~700 MB of
       downloads per build (40 s today).
 - The rpool NVMe replacement (homelab TODO) speeds up every I/O bound phase.
+
+## bootc: sealed images (if bootc stays)
+
+Read 2026-10-09: the bootc.dev series "Sealed images" (2026-05-04 to 05-07) and the bootc docs
+(`bootc-composefs.7.md`, `building/bootc-sealed-images.7.md`). A sealed image is a chain from the
+firmware to every file: Secure Boot (own keys) -> signed systemd-boot -> signed UKI (kernel,
+initramfs and command line in one EFI binary) whose command line carries the composefs digest of
+the whole root (`composefs.digest=v1-sha512-12:...`, computed at build time) -> the initramfs only
+mounts a root with that digest, and fs-verity checks every file on read (a tampered file returns
+EIO). Without Secure Boot "nothing validates that root digest itself": any root process can
+replace the UKI, so a UKI alone adds little.
+
+- [ ] **Check what the T480 has now** (when it is up): the composefs backend enforces fs-verity
+      by default, also with BLS entries (`findmnt /` shows `verity=require`, `/proc/cmdline`
+      `composefs=`), on btrfs (`fsverity=yes` in the kernel log). That is the integrity half;
+      the digest there is written by the client, not authenticated.
+- [ ] **Sealed images, together with LUKS + TPM2.** Sealing protects the system, not the data: a
+      stolen laptop's `/var/home` is readable without disk encryption. The pair that pays off is
+      a TPM2-bound LUKS key released only when our signed UKI boots (`systemd-cryptenroll`).
+      - Build: two Containerfile stages, `bootc container split-kernel-and-rootfs` and
+        `bootc container ukify --rootfs ... --kernel-dir ... -- --signtool sbsign
+        --secureboot-private-key ... --secureboot-certificate ...`, the UKI copied to
+        `/boot/EFI/Linux/`, systemd-boot signed with the same db key. The key reaches the build
+        as a podman secret (never in a layer), lives in `/etc/distro-builder/` and in the homelab
+        vault like the sigstore key. Tools available: `systemd-ukify` 262 and `sbsigntools`
+        (Arch), and our bootc 1.17.1 has `split-kernel-and-rootfs`, `compute-composefs-digest`,
+        `--allow-missing-verity` and the Secure Boot key enrolment.
+      - Machines: own PK/KEK/db enrolled with the firmware in Setup Mode (systemd-boot
+        `secure-boot-enroll` from `/usr/lib/bootc/install/secureboot-keys/<name>/`, or `sbctl`),
+        keeping Microsoft's keys (Lenovo and fwupd firmware updates, option ROMs). The installer
+        ISO is not signed: install with Secure Boot off, enable it afterwards. LUKS needs the
+        dracut modules left out on 2026-10-08 back (`crypt`, `systemd-cryptsetup`, `dm`, and
+        `systemd-pcrextend` for TPM policies), and bootc's install with LUKS + TPM has an open
+        issue (bootc-dev/bootc#421).
+      - Limits: the kernel command line is fixed in the image (machine specific arguments such
+        as `resume=` go; systemd resumes from the `HibernateLocation` EFI variable instead), btrfs
+        is "expected to work but not tested" upstream (their CI covers ext4 and XFS), keys must
+        be rotated (db key valid 10 years in the examples). The P14s gains nothing while it runs
+        arkdep: this is also an argument for bootc in the comparison.
+      - Test in a VM first: OVMF with our keys enrolled (`virt-fw-vars --set-pk/--add-kek/--add-db`,
+        as in the series), which the boot test above can reuse to check the seal on every build
+        (`verity=require`, `mokutil --sb-state`) before touching the T480's firmware.
 
 Upstream issues with a local workaround, to drop when they are fixed in a bootc release:
 
