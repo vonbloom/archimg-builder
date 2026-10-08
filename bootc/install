@@ -146,7 +146,8 @@ if [[ -n $WIFI ]]; then
 fi
 
 # bootc install does not add a firmware boot entry (only the EFI/BOOT/BOOTX64.EFI fallback), and
-# an older entry (e.g. the previous system's GRUB, now without its root) would boot first
+# an older entry (e.g. the previous system's GRUB, now without its root) would boot first:
+# bootc-dev/bootc#2557 (bootctl --root skips EFI variables without --variables=yes)
 esp_disk=/dev/$(lsblk -dno PKNAME "$ESP")
 esp_num=$(cat "/sys/class/block/$(basename "$ESP")/partition")
 entry=$(efibootmgr | sed -n 's/^Boot\([0-9A-F]\{4\}\)\* Linux Boot Manager.*/\1/p' | head -1)
@@ -160,7 +161,8 @@ fi
 efibootmgr | grep -E '^(BootOrder|Boot[0-9A-F]{4}\* Linux Boot Manager)'
 
 # The boot menu, as the arkdep installer sets it. bootc only writes "timeout 5" when there is no
-# loader.conf, but bootctl install has just written one with every line commented out (no menu)
+# loader.conf, but bootctl install has just written one with every line commented out (no menu):
+# bootc-dev/bootc#2558
 cat >"$TARGET/boot/loader/loader.conf" <<EOF
 timeout 5
 console-mode max

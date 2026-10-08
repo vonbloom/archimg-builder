@@ -67,6 +67,17 @@ pushes only upload changed layers). The VM disk is a zvol on zeus' Kingston SA40
       downloads per build (40 s today).
 - The rpool NVMe replacement (homelab TODO) speeds up every I/O bound phase.
 
+Upstream issues with a local workaround, to drop when they are fixed in a bootc release:
+
+- [ ] bootc-dev/bootc#2557 (no firmware boot entry with `--bootloader systemd`): the
+      `efibootmgr` step of `bootc/install`.
+- [ ] bootc-dev/bootc#2558 (`timeout 5` never written): the `loader.conf` written by `bootc/install`.
+- [ ] bootc-dev/bootc#2227 (version read from labels on ostree, annotations on composefs): keep
+      both in `bootc/build`; the creation date fallback of `bootc-update` once every image has the
+      annotation.
+- [ ] AUR `bootc` without the `selinux` feature (reported in the AUR comments): `aur/local/bootc`
+      while the AUR package links libselinux.
+
 ## Storage
 
 - [ ] **Compress the existing data.** `compress=zstd:1` (2026-10-07, active on the P14s since the

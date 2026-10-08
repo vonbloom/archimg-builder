@@ -62,8 +62,9 @@ the installer ISO (`cow_spacesize=2G`), `bootc/install` downloaded from GitHub:
   install-time kernel arguments (`/home` and swap mounts, `resume=`, `rootflags`) were still there,
   and the `/etc` 3-way merge applied the image's corrected modes (`/etc/systemd` 775 -> 755,
   libvirt's `default.xml` 644 -> 600). The previous image stays as the rollback entry.
-- `bootc status` shows no `version` on composefs (1.17.0 and 1.17.1) although the image has the
-  label: `bootc-update` falls back to the image's creation date.
+- `bootc status` showed no `version` on composefs (1.17.0 and 1.17.1) although the image had the
+  label: the composefs backend reads only the manifest annotation, which `bootc/build` now sets too
+  (bootc-dev/bootc#2227); `bootc-update` falls back to the image's creation date.
 - The `userland` distrobox broke when its first setup was interrupted (see the dotfiles'
   pre-init hook): not bootc specific.
 
@@ -82,10 +83,16 @@ the installer ISO (`cow_spacesize=2G`), `bootc/install` downloaded from GitHub:
   arkdep-build's `cp -r`.
 - bootc mounts the ESP read-only at `/boot`: `systemd-boot-random-seed.service` fails, masked.
 - `bootc install` creates no firmware boot entry (only the `EFI/BOOT/BOOTX64.EFI` fallback):
-  `install` adds or reorders it with `efibootmgr`.
+  `install` adds or reorders it with `efibootmgr`. Reported: bootc-dev/bootc#2557 (`bootctl --root`
+  skips EFI variables unless `--variables=yes`).
 - No boot menu: `bootctl install` writes a `loader.conf` with every line commented out, so bootc's
-  own `timeout 5` (only written when the file is missing) never lands; `install` writes it. Every
-  entry was titled "Arch Linux": the titles come from the image's os-release.
+  own `timeout 5` (only written when the file is missing) never lands; `install` writes it.
+  Reported: bootc-dev/bootc#2558. Every entry was titled "Arch Linux": the titles come from the
+  image's os-release.
+- `bootc status` shows no version on composefs for an image with only the
+  `org.opencontainers.image.version` label: that backend reads the manifest annotation (the ostree
+  one the label). `bootc/build` sets both; reported in bootc-dev/bootc#2227 (comment of
+  2026-10-08).
 
 ## Missing before real use
 

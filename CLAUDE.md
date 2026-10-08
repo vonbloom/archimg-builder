@@ -159,8 +159,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` in
   `build-recipe.sh`'s `preset-all`) runs `bootc-update`:
   `bootc upgrade` (stage only) and `/run/bootc-update/staged` (recipe, version, package list URL)
-  for the waybar indicator. The version is the `org.opencontainers.image.version` label set by
-  `bootc/build` (the date tag). `bootc-fetch-apply-updates.timer` stays disabled: it reboots by
+  for the waybar indicator. The version is `org.opencontainers.image.version` (the date tag), set
+  by `bootc/build` as a label (bootc's ostree backend) and a manifest annotation (the composefs
+  backend reads only that, bootc-dev/bootc#2227). `bootc-fetch-apply-updates.timer` stays disabled: it reboots by
   itself and only runs on ostree boots (`/run/ostree-booted`).
 - `arkdep-update-status` (sway layer) serves both: arkdep when `/arkdep/config` exists, bootc
   otherwise.
@@ -180,12 +181,12 @@ How `arkdep-build` processes a recipe (relevant constraints):
   root), `wipefs` + `mount -t btrfs` (udev's cached probe still says ext4), the target at
   `/target` in the container (`/mnt` links to `var/mnt` in a bootc image), user/hostname/Wi-Fi
   written to `/state/deploy/<id>/etc` and `/state/os/default/var` (`useradd --prefix`), and an
-  `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback). It deletes the ESP's
+  `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback, bootc-dev/bootc#2557). It deletes the ESP's
   `bootc_*.conf` entries (and `EFI/Linux/bootc_composefs-*`) whose root is the reformatted
   partition or gone: they share title and sort key with the new one and the version is a hash, so
   systemd-boot booted a stale one in a rehearsal. It writes `loader.conf` like the arkdep
   installer: bootc only writes `timeout 5` when the file is missing, and `bootctl install` has
-  just created it with every line commented out (no menu). Rehearsed in a VM booted from the ISO
+  just created it with every line commented out (no menu, bootc-dev/bootc#2558). Rehearsed in a VM booted from the ISO
   with a T480-like layout (2026-10-08).
 - Boot entry titles: bootc uses `PRETTY_NAME` and `VERSION_ID` of the image's `/usr/lib/os-release`;
   the Containerfile sets them to `Arch Linux (<recipe> <tag>)` and `<tag>.<HHMM>` (`VERSION` and
