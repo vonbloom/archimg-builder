@@ -274,6 +274,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
   by any container for 30 days and old VS Code server versions in the dev containers' shared
   `vscode` volume (VS Code adds one per update and never removes them: 10 versions, 6 GB in
   2026-10). It never removes containers or volumes.
+- **First userland setup** (`deploy-userland`, at any login, SSH too): it takes minutes, and ending
+  the session or rebooting meanwhile stops the box mid-setup. `distrobox assemble create` skips
+  existing boxes, so such a box never got its exports (bootc T480 rehearsal, 2026-10-08):
+  `deploy-userland` removes boxes without `/.containersetupdone` (checked with `podman unshare` +
+  `podman mount`) before assembling, and the dotfiles' pre-init hook removes a leftover pacman lock.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and

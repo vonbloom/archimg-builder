@@ -16,6 +16,16 @@ xdg-user-dirs-update
 
 if test -f "$DISTROBOX_CONFIG"; then
     echo "Deploying Distroboxes..."
+    # A box whose first setup was interrupted (the session ended or the machine rebooted while it
+    # installed its packages) has no exports and may be half installed, and assemble skips the
+    # boxes that exist: remove it so that assemble creates it again
+    for box in $(podman ps -a --filter label=manager=distrobox --format '{{.Names}}'); do
+        if ! podman unshare sh -c 'm=$(podman mount "$1") || exit 0
+            test -e "$m/.containersetupdone"; r=$?; podman umount "$1" >/dev/null; exit $r' sh "$box"; then
+            echo " - $box: first setup unfinished, creating it again"
+            distrobox rm --force "$box"
+        fi
+    done
     distrobox assemble create --file "$DISTROBOX_CONFIG" || true
     distrobox enter -- true
 fi
