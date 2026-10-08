@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# Install a bootc image from the build server's registry onto existing partitions, keeping an
+# existing /home partition. Run as root from a live system (the installer ISO booted with
+# cow_spacesize=2G, room to install podman; the image goes to a tmpfs, ~5 GB of RAM).
+#
+#   install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
+#           --home /dev/nvme0n1p4 --swap /dev/nvme0n1p2 --hostname anubis [--wifi Sputnik.psk]
+#
+# The root partition is formatted (btrfs, zstd:1, noatime). The ESP is reused: bootc installs
+# systemd-boot there (other ESP content stays). The home partition is not touched: it is mounted at
+# /var/home (/home links there on bootc systems) with systemd.mount-extra=, and must contain the
+# user's directory owned by --uid. The swap partition is enabled with systemd.swap-extra= and used
+# for hibernation (resume=). The user is created in the installed /etc with the given UID, the
+# groups of the arkdep installer and a password asked here. --wifi copies an iwd profile from the
+# user's directory on the home partition.
+
+set -euo pipefail
+
+IMAGE= ROOT= ESP= HOME_PART= SWAP= HOSTNAME_NEW= WIFI=
+USER_NAME=roger USER_UID=1000
+GROUPS_EXTRA=wheel,input,video,render,audio,kvm,libvirt
+REGISTRY=192.168.2.50:5000
+TARGET=/mnt/bootc-target OLDHOME=/mnt/bootc-home
+
+die() { echo "error: $*" >&2; exit 1; }
+while (($#)); do
+	case $1 in
+	--image) IMAGE=$2 ;; --root) ROOT=$2 ;; --esp) ESP=$2 ;; --home) HOME_PART=$2 ;;
+	--swap) SWAP=$2 ;; --hostname) HOSTNAME_NEW=$2 ;; --wifi) WIFI=$2 ;;
+	--user) USER_NAME=$2 ;; --uid) USER_UID=$2 ;;
+	*) die "unknown option $1" ;;
+	esac
+	shift 2
+done
+[[ $EUID -eq 0 ]] || die "run as root"
+[[ -n $IMAGE && -n $ROOT && -n $ESP && -n $HOSTNAME_NEW ]] || die "--image, --root, --esp and --hostname are required"
+for dev in "$ROOT" "$ESP" ${HOME_PART:+"$HOME_PART"} ${SWAP:+"$SWAP"}; do
+	[[ $(lsblk -dno TYPE "$dev" 2>/dev/null) == part ]] || die "$dev is not a partition"
+done
+[[ $(printf '%s\n' "$ROOT" "$ESP" $HOME_PART $SWAP | sort | uniq -d) == "" ]] || die "a partition is used twice"
+[[ $(lsblk -dno FSTYPE "$ESP") == vfat ]] || die "$ESP is not a vfat ESP"
+[[ -z $SWAP || $(lsblk -dno FSTYPE "$SWAP") == swap ]] || die "$SWAP is not a swap partition"
+findmnt -rn -S "$ROOT" >/dev/null && die "$ROOT is mounted"
+
+uuid() { blkid -s UUID -o value "$1"; }
+# A failed run leaves nothing mounted, so it can simply be run again
+cleanup() {
+	mountpoint -q "$TARGET" && umount -R "$TARGET"
+	mountpoint -q "$OLDHOME" && umount "$OLDHOME"
+	return 0
+}
+trap cleanup EXIT
+
+# The home partition must hold the user's directory, owned by the UID the user gets here
+if [[ -n $HOME_PART ]]; then
+	mkdir -p "$OLDHOME"
+	mount -o ro "$HOME_PART" "$OLDHOME"
+	[[ -d $OLDHOME/$USER_NAME ]] || die "$HOME_PART has no $USER_NAME directory"
+	owner=$(stat -c %u "$OLDHOME/$USER_NAME")
+	[[ $owner == "$USER_UID" ]] || die "$OLDHOME/$USER_NAME belongs to UID $owner, not $USER_UID"
+	[[ -z $WIFI || -f $OLDHOME/$USER_NAME/$WIFI ]] || die "no $WIFI in $USER_NAME's directory"
+fi
+
+lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINTS "/dev/$(lsblk -dno PKNAME "$ROOT")"
+cat <<EOF
+
+Image:    $IMAGE
+Root:     $ROOT  ($(lsblk -dno FSTYPE,LABEL,SIZE "$ROOT"))  WILL BE FORMATTED (btrfs)
+ESP:      $ESP   (systemd-boot is installed there)
+Home:     ${HOME_PART:-none}  ${HOME_PART:+(kept, mounted at /var/home)}
+Swap:     ${SWAP:-none}
+Hostname: $HOSTNAME_NEW, user $USER_NAME (UID $USER_UID)
+EOF
+read -rp "Type the root partition ($ROOT) to format it and install: " answer
+[[ $answer == "$ROOT" ]] || die "aborted"
+
+read -rsp "Password for $USER_NAME: " pw1; echo
+read -rsp "Again: " pw2; echo
+[[ -n $pw1 && $pw1 == "$pw2" ]] || die "passwords differ or are empty"
+hash=$(openssl passwd -6 -stdin <<<"$pw1")
+unset pw1 pw2
+
+# podman in the live system, and the build server's plain-HTTP registry. The live root is an
+# overlayfs, which podman's overlay storage cannot sit on: its storage goes to a tmpfs
+command -v podman >/dev/null || pacman -Sy --noconfirm podman
+if [[ $(findmnt -no FSTYPE /) == overlay ]] && ! mountpoint -q /var/lib/containers; then
+	mkdir -p /var/lib/containers
+	mount -t tmpfs -o size=12G tmpfs /var/lib/containers
+fi
+mkdir -p /etc/containers/registries.conf.d
+printf '[[registry]]\nlocation = "%s"\ninsecure = true\n' "$REGISTRY" \
+	>/etc/containers/registries.conf.d/50-distro-builder.conf
+podman pull "$IMAGE"
+
+# wipefs and an explicit type: otherwise mount still sees the old ext4 (udev's cached probe)
+wipefs -a "$ROOT"
+mkfs.btrfs -f -L ROOT "$ROOT"
+udevadm settle
+mkdir -p "$TARGET"
+mount -t btrfs -o compress=zstd:1,noatime "$ROOT" "$TARGET"
+mkdir -p "$TARGET/boot"
+mount "$ESP" "$TARGET/boot"
+
+kargs=(--karg "rootflags=compress=zstd:1,noatime")
+[[ -n $HOME_PART ]] && kargs+=(--karg "systemd.mount-extra=UUID=$(uuid "$HOME_PART"):/var/home:$(lsblk -dno FSTYPE "$HOME_PART"):defaults")
+[[ -n $SWAP ]] && kargs+=(--karg "systemd.swap-extra=UUID=$(uuid "$SWAP"):pri=10" --karg "resume=UUID=$(uuid "$SWAP")")
+
+# /target, not $TARGET: /mnt is a link to var/mnt in a bootc image, which does not exist there
+podman run --rm --privileged --pid=host --ipc=host --security-opt label=type:unconfined_t \
+	-v /dev:/dev -v /var/lib/containers:/var/lib/containers -v "$TARGET:/target" \
+	"$IMAGE" bootc install to-filesystem --composefs-backend --bootloader systemd \
+	--skip-finalize "${kargs[@]}" /target
+
+# Machine-local configuration, written to the deployment's /etc and the shared /var
+# (bootc-sysroot(7): /state/deploy/<id>/etc, /state/os/default/var)
+deploys=("$TARGET"/state/deploy/*/)
+((${#deploys[@]} == 1)) && [[ -d ${deploys[0]}/etc ]] || die "expected one deployment in $TARGET/state/deploy"
+deploy=${deploys[0]%/}
+var=$TARGET/state/os/default/var
+
+echo "$HOSTNAME_NEW" >"$deploy/etc/hostname"
+useradd --prefix "$deploy" -u "$USER_UID" -U -G "$GROUPS_EXTRA" -s /usr/bin/zsh \
+	-d "/var/home/$USER_NAME" -M "$USER_NAME"
+usermod --prefix "$deploy" -p "$hash" "$USER_NAME"
+for f in subuid subgid; do
+	touch "$deploy/etc/$f"
+	grep -q "^$USER_NAME:" "$deploy/etc/$f" || echo "$USER_NAME:100000:65536" >>"$deploy/etc/$f"
+done
+if [[ -n $WIFI ]]; then
+	install -D -m 600 "$OLDHOME/$USER_NAME/$WIFI" "$var/lib/iwd/$WIFI"
+	chmod 700 "$var/lib/iwd"
+fi
+
+# bootc install does not add a firmware boot entry (only the EFI/BOOT/BOOTX64.EFI fallback), and
+# an older entry (e.g. the previous system's GRUB, now without its root) would boot first
+esp_disk=/dev/$(lsblk -dno PKNAME "$ESP")
+esp_num=$(cat "/sys/class/block/$(basename "$ESP")/partition")
+entry=$(efibootmgr | sed -n 's/^Boot\([0-9A-F]\{4\}\)\* Linux Boot Manager.*/\1/p' | head -1)
+if [[ -z $entry ]]; then
+	efibootmgr --create --disk "$esp_disk" --part "$esp_num" --label "Linux Boot Manager" \
+		--loader '\EFI\systemd\systemd-bootx64.efi' >/dev/null
+else
+	order=$(efibootmgr | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vx "$entry" | paste -sd,)
+	efibootmgr --bootorder "$entry${order:+,$order}" >/dev/null
+fi
+efibootmgr | grep -E '^(BootOrder|Boot[0-9A-F]{4}\* Linux Boot Manager)'
+
+fstrim -v "$TARGET" || true
+echo "Installed. Remove the USB stick and reboot; then: bootc status"

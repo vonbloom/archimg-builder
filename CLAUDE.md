@@ -81,7 +81,7 @@ t480/             ThinkPad T480 (i7-8650U Kaby Lake-R, UHD 620, Intel 8265, 2 ba
 ```
 
 Device recipes contain only hardware specific things (ucode, `linux-firmware-*` split packages,
-GPU driver in `dracut.conf.d/10-gpu.conf`, `tlp.d/50-<device>.conf`, presets) plus `name.sh`,
+GPU driver in `dracut.conf.d/10-gpu.conf`, `tlp.d/50-<device>.conf`, presets, `/etc/hostname`) plus `name.sh`,
 `type`, `depends.list` and symlinks `pacman.conf`, `mirrorlist`, `extensions` -> `../common/`.
 
 How `arkdep-build` processes a recipe (relevant constraints):
@@ -153,6 +153,18 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `bootc/overlay/` holds files only bootc images need: the registry as insecure in
   `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
 - No image signing yet (cosign + `policy.json` on the clients), see `bootc/README.md`.
+- `build-recipe.sh` extracts overlays with `tar --no-same-owner --no-same-permissions
+  --no-overwrite-dir` (what arkdep-build's `cp -r` does). Plain `tar -xp` kept the checkout's UID
+  1000 and 775 modes, also on existing dirs (`/usr`, `/usr/lib`, `/etc/systemd`): sudo ignored
+  `sudoers.d` and iwd failed on D-Bus. Check new images with `find / -xdev -uid 1000`.
+- bootc mounts the ESP read-only at `/boot` (`systemd.mount-extra=...:/boot:auto:ro`), so
+  `systemd-boot-random-seed.service` is masked in `bootc/overlay` (systemd-boot refreshes the seed).
+- `bootc/install` (live ISO): podman storage on a tmpfs (overlay cannot sit on the live overlayfs
+  root), `wipefs` + `mount -t btrfs` (udev's cached probe still says ext4), the target at
+  `/target` in the container (`/mnt` links to `var/mnt` in a bootc image), user/hostname/Wi-Fi
+  written to `/state/deploy/<id>/etc` and `/state/os/default/var` (`useradd --prefix`), and an
+  `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback). Rehearsed in a VM booted from
+  the ISO with a T480-like layout (2026-10-08).
 
 ## Installer ISO (`iso/`)
 

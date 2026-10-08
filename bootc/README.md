@@ -9,8 +9,11 @@ the build server's registry by `build-bootc@<recipe>` (see the main README); no 
   `[aur]` repository (`aur/local/bootc`: pinned version, no SELinux); composefs backend.
 - `build-recipe.sh`: applies the arkdep recipe in arkdep-build's order (package lists, overlays,
   presets, locale-gen), without arkdep, `arkane-keyring` and `nss-altfiles`.
-- `overlay/`: files only bootc systems need (the registry, AppArmor's `@{HOMEDIRS}`).
+- `overlay/`: files only bootc systems need (the registry, AppArmor's `@{HOMEDIRS}`, the masked
+  `systemd-boot-random-seed.service`).
 - `build`, `prune`: build, rechunk and push; retention in the registry.
+- `install`: installs an image from the installer ISO on existing partitions, keeping `/home` (see
+  the main README).
 
 ```
 podman build --no-hostname -f bootc/Containerfile --build-arg RECIPE=p14s -t localhost/p14s-bootc .
@@ -55,16 +58,24 @@ These tests compiled bootc in the Containerfile (since replaced by the `[aur]` p
   overlay's `resolv.conf` link becomes a tmpfiles.d entry.
 - `/usr/local` is a link to `/var/usrlocal`, which bootc never updates after the install: the
   recipe's scripts move to `/usr/bin`.
+- Overlays extracted with `tar -xp` kept the checkout's UID 1000 and 775 modes, also on existing
+  directories (`/usr`, `/etc/systemd`, `/etc/sudoers.d`): sudo ignored `sudoers.d` and iwd failed
+  on D-Bus (the first registry image, `p14s:2026-10-07`). They are now extracted as root like
+  arkdep-build's `cp -r`.
+- bootc mounts the ESP read-only at `/boot`: `systemd-boot-random-seed.service` fails, masked.
+- `bootc install` creates no firmware boot entry (only the `EFI/BOOT/BOOTX64.EFI` fallback):
+  `install` adds or reorders it with `efibootmgr`.
 
 ## Missing before real use
 
 - Done: the registry on the build server (`insecure` in `registries.conf.d`), retention
   (`prune`), `bootc` packaged once in `[aur]` instead of compiled in every build.
 - Image signing (cosign + `policy.json` on the clients) instead of the GPG-signed arkdep repository.
-- Machine-specific kernel arguments (`resume=`, `resume_offset=` for hibernation) set at install
-  time and kept across updates: not tested. The swap file has to live outside the composefs root.
+- Machine-specific kernel arguments: `install` passes the `/home` mount, the swap partition and
+  `resume=` with `--karg`; that they survive `bootc upgrade` is not tested yet, nor hibernation.
 - btrbk (`snapshot_dir /arkdep/snapshots`), the arkdep waybar module (`bootc status --json`),
-  `notify-image`, the status page, the installer ISO (`bootc install to-disk`), `arkdep-diff`.
+  `arkdep-diff`. Done: `notify-image` and the status page.
 - btrfs is "expected to work but not tested" upstream with the composefs backend; it worked here.
   No boot counting / automatic rollback (arkdep has none either).
-- Reinstall: there is no migration from arkdep.
+- No in-place migration from arkdep: `install` reinstalls the root partition and keeps a separate
+  `/home` partition (the T480 layout); the P14s has `/home` inside its btrfs root.

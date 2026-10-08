@@ -23,7 +23,12 @@ overlays() {
 	for d in "${dirs[@]}"; do
 		src=$root/$d/overlay/$1
 		[[ -d $src ]] || continue
-		tar -C "$src" --exclude=./etc/resolv.conf -cf - . | tar -C / -xpf -
+		# Like arkdep-build's cp -r: root owns the new files, their modes follow root's umask, and
+		# existing directories keep their metadata. Extracting with the checkout's owner and modes
+		# made /usr, /usr/lib, /etc/systemd, /etc/sudoers.d... UID 1000 and 775: sudo ignored
+		# sudoers.d and iwd could not register on D-Bus
+		tar -C "$src" --exclude=./etc/resolv.conf -cf - . |
+			tar -C / -xf - --no-same-owner --no-same-permissions --no-overwrite-dir
 		if [[ -L $src/etc/resolv.conf ]]; then
 			target=$(readlink "$src/etc/resolv.conf")
 			echo "L+ /etc/resolv.conf - - - - $target" >/usr/lib/tmpfiles.d/etc-resolv-conf.conf

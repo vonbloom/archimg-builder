@@ -262,6 +262,17 @@ the results of the first tests in a VM.
   serves plain HTTP on port 5000; the images list it as insecure in
   `/etc/containers/registries.conf.d/50-distro-builder.conf`. A bootc system follows a recipe with
   `bootc switch 192.168.2.50:5000/<recipe>:latest` and updates with `bootc upgrade`.
+- `bootc/install` installs an image on existing partitions from the installer ISO (boot it with
+  `cow_spacesize=2G` on the kernel line; run as root): it formats the root partition (btrfs), reuses
+  the ESP (systemd-boot, first in the firmware boot order), keeps a `/home` partition (mounted at
+  `/var/home`, the user's directory must belong to `--uid`), enables a swap partition for
+  hibernation, and creates the user, hostname and Wi-Fi profile:
+
+  ```sh
+  curl -O https://raw.githubusercontent.com/vonbloom/distro-builder/main/bootc/install
+  bash install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
+      --home /dev/nvme0n1p4 --swap /dev/nvme0n1p2 --hostname anubis --wifi Sputnik.psk
+  ```
 
 ## Installer ISO (`iso/`)
 
