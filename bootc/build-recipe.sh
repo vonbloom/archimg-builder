@@ -23,8 +23,9 @@ lists() {
 # made /usr, /etc/systemd, /etc/sudoers.d... UID 1000 and 775 (sudo ignored sudoers.d, iwd could not
 # register on D-Bus), and COPY applied its 775 directory modes to existing directories. The copy
 # goes through a root-owned staging directory first. /etc/resolv.conf is bind mounted during the
-# build: an overlay's link becomes a tmpfiles.d entry (sorts before systemd-resolve.conf, whose L!
-# entry it replaces)
+# build: an overlay's link becomes a tmpfiles.d entry, in /etc/tmpfiles.d/systemd-resolve.conf so
+# that it replaces systemd's file of that name (its only line is the stub-resolv.conf link; two
+# entries for the path logged "Duplicate line" at every boot)
 copy_overlay() {
 	local src=$1 stage target
 	stage=$(mktemp -d)
@@ -34,7 +35,8 @@ copy_overlay() {
 	rm -r "$stage"
 	if [[ -L $src/etc/resolv.conf ]]; then
 		target=$(readlink "$src/etc/resolv.conf")
-		echo "L+ /etc/resolv.conf - - - - $target" >/usr/lib/tmpfiles.d/etc-resolv-conf.conf
+		mkdir -p /etc/tmpfiles.d
+		echo "L+ /etc/resolv.conf - - - - $target" >/etc/tmpfiles.d/systemd-resolve.conf
 	fi
 }
 overlays() {

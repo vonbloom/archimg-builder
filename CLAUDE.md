@@ -170,8 +170,10 @@ How `arkdep-build` processes a recipe (relevant constraints):
   1000 and 775 modes, also on existing dirs (`/usr`, `/usr/lib`, `/etc/systemd`): sudo ignored
   `sudoers.d` and iwd failed on D-Bus. `COPY` gave existing dirs the checkout's 775 (server umask
   0002), and tar replaced existing files with the overlay's mode (libvirt's 600 `default.xml` became
-  644). Check new images with `find / -xdev -uid 1000` and `pacman -Qkk | grep mismatch` (normal:
-  `utempter`, `/var/...`).
+  644). The Containerfile fails the build when `pacman -Qkk` reports an owner or mode mismatch
+  (expected: `/proc`, `/sys`, `utempter`) or a file belongs to UID 1000; at runtime `/var/...`
+  entries also differ (created by tmpfiles). The overlays' `resolv.conf` link becomes
+  `/etc/tmpfiles.d/systemd-resolve.conf`, replacing systemd's file of that name.
 - bootc mounts the ESP read-only at `/boot` (`systemd.mount-extra=...:/boot:auto:ro`), so
   `systemd-boot-random-seed.service` is masked in `bootc/overlay` (systemd-boot refreshes the seed).
 - `bootc/install` (live ISO): podman storage on a tmpfs (overlay cannot sit on the live overlayfs

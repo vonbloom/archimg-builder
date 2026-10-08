@@ -91,5 +91,14 @@ RUN sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Arch Linux ($RECIPE $VERSION)\"/" /u
     ln -sf ../usr/lib/os-release /etc/os-release && \
     cat /etc/os-release
 
+# Files whose owner or mode differ from their package's: an overlay must never change them (a tar
+# extraction once made /usr and /etc/sudoers.d UID 1000 and 775: sudo and iwd broke), and no file
+# belongs to the checkout's UID 1000. Expected: /proc and /sys (mounted during the build) and
+# utempter (its install script sets the group and the mode)
+RUN mismatches=$(pacman -Qkk 2>&1 | grep -E '(UID|GID|Permissions) mismatch' | \
+        grep -vE '^warning: (filesystem: /(proc|sys) |libutempter: /usr/lib/utempter/utempter )'); \
+    uid1000=$(find / -xdev -uid 1000 2>/dev/null); \
+    if [ -n "$mismatches$uid1000" ]; then printf '%s\n' "$mismatches" "$uid1000"; exit 1; fi
+
 LABEL containers.bootc=1
 RUN bootc container lint
