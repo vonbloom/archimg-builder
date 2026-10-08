@@ -3,8 +3,10 @@
 # - images not used by any container (running or stopped) and created more than 30 days ago.
 #   Dev container base images are pulled again on the next rebuild.
 # - VS Code server versions in the "vscode" volume shared by the dev containers, except the newest
-#   one and any version still running, and extension downloads (extensionsCache) older than 30
-#   days. VS Code installs a new server there on every update and never removes the old ones.
+#   one and any version still running, and the extension downloads (extensionsCache) but the
+#   newest of each extension. VS Code installs a new server there on every update and never
+#   removes the old ones, nor old extension downloads (8 GB in a month in 2026-10: one extension
+#   had 99 versions).
 # Containers and volumes are never removed. The volume files belong to subordinate UIDs, hence
 # podman unshare.
 set -euo pipefail
@@ -26,6 +28,18 @@ if podman unshare test -d "$bin"; then
 		podman unshare rm -rf "${bin:?}/$version"
 	done
 fi
+# Downloads are named <publisher>.<name>-<version>[-<platform>], with the signature in a .sigzip of
+# the same name: highest version first (sort -V; downloads of several versions share an mtime),
+# keep the first package of each name without its version (one per extension and platform) and the
+# signatures of the packages kept
 if podman unshare test -d "$cache"; then
-	podman unshare find "$cache" -maxdepth 1 -type f -mtime +30 -print -delete
+	mapfile -t old < <(podman unshare find "$cache" -maxdepth 1 -type f -printf '%f\n' |
+		sort -Vr | awk '
+			/\.sigzip$/ { sig[++n] = $0; next }
+			{ key = $0; sub(/-[0-9][^-]*/, "", key); if (seen[key]++) print; else kept[$0] = 1 }
+			END { for (i = 1; i <= n; i++) { f = sig[i]; sub(/\.sigzip$/, "", f); if (!(f in kept)) print sig[i] } }')
+	if ((${#old[@]})); then
+		printf 'Removing extension download %s\n' "${old[@]}"
+		podman unshare rm -f -- "${old[@]/#/$cache/}"
+	fi
 fi

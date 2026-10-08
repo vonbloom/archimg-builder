@@ -280,7 +280,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Podman storage** (`podman-cleanup.timer`, user, monthly, sway layer): removes images unused
   by any container for 30 days and old VS Code server versions in the dev containers' shared
   `vscode` volume (VS Code adds one per update and never removes them: 10 versions, 6 GB in
-  2026-10). It never removes containers or volumes. After a VS Code update, windows of several
+  2026-10), and all but the highest version of each extension download in its `extensionsCache`
+  (`sort -V`, `.sigzip` signatures go with their package; an age limit kept nearly everything:
+  some extensions publish daily, 8 GB in a month). It never removes containers or volumes. After a VS Code update, windows of several
   dev containers restored at once race to install the new server into that shared volume: the
   losers fail (`mv -n ...` then `rmdir: ... Directory not empty`), "Reload Window" fixes them (the
   server is installed by then). Accepted (2026-10-08): `dev.containers.cacheVolume: false` (a
