@@ -287,11 +287,14 @@ How `arkdep-build` processes a recipe (relevant constraints):
   losers fail (`mv -n ...` then `rmdir: ... Directory not empty`), "Reload Window" fixes them (the
   server is installed by then). Accepted (2026-10-08): `dev.containers.cacheVolume: false` (a
   server per container) or `window.restoreWindows: one` would avoid it at a permanent cost.
-- **First userland setup** (`deploy-userland`, at any login, SSH too): it takes minutes, and ending
+- **First userland setup** (`deploy-userland`, when the user manager starts: the first session
+  after boot, SSH too, not every login): it takes minutes, and ending
   the session or rebooting meanwhile stops the box mid-setup. `distrobox assemble create` skips
   existing boxes, so such a box never got its exports (bootc T480 rehearsal, 2026-10-08):
   `deploy-userland` removes boxes without `/.containersetupdone` (checked with `podman unshare` +
-  `podman mount`) before assembling, and the dotfiles' pre-init hook removes a leftover pacman lock.
+  `podman mount`; written once the packages are installed, before the init hooks) before
+  assembling, and the dotfiles' pre-init hook removes a leftover pacman lock. A failing init hook
+  also left the T480's userland without exports: the dotfiles' hooks must not fail.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and

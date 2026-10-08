@@ -18,7 +18,9 @@ if test -f "$DISTROBOX_CONFIG"; then
     echo "Deploying Distroboxes..."
     # A box whose first setup was interrupted (the session ended or the machine rebooted while it
     # installed its packages) has no exports and may be half installed, and assemble skips the
-    # boxes that exist: remove it so that assemble creates it again
+    # boxes that exist: remove it so that assemble creates it again. distrobox-init writes
+    # /.containersetupdone once the packages are installed: a failure later (an init hook) is not
+    # detected, init hooks must not fail (the dotfiles' default.ini)
     for box in $(podman ps -a --filter label=manager=distrobox --format '{{.Names}}'); do
         if ! podman unshare sh -c 'm=$(podman mount "$1") || exit 0
             test -e "$m/.containersetupdone"; r=$?; podman umount "$1" >/dev/null; exit $r' sh "$box"; then
@@ -28,8 +30,12 @@ if test -f "$DISTROBOX_CONFIG"; then
     done
     distrobox assemble create --file "$DISTROBOX_CONFIG" || true
     distrobox enter -- true
+else
+    # An older ~/.dotfiles without the distrobox package (it is only cloned when missing)
+    echo "No $DISTROBOX_CONFIG: update ~/.dotfiles (git pull, ./install) and run it again"
 fi
 
+# No notification daemon outside sway (a console or SSH login): not a failure
 if command -v notify-send >/dev/null; then
-    notify-send -t 3000 -i distropix "Sistema a punt" "Dotfiles i contenidors Distrobox configurats correctament."
+    notify-send -t 3000 -i distropix "Sistema a punt" "Dotfiles i contenidors Distrobox configurats correctament." || true
 fi

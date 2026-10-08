@@ -329,8 +329,9 @@ First session:
    first) and restow: `cd ~/.dotfiles && git pull && ./install`. `deploy-userland` only clones the
    dotfiles when `~/.dotfiles` is missing, and only creates the distroboxes from
    `~/.config/distrobox/default.ini`.
-3. `systemctl --user start deploy-userland` (it also runs at every login) creates `playground` and
-   `userland` and exports the apps. It takes minutes: do not log out or reboot until the
+3. `systemctl --user start deploy-userland` creates `playground` and `userland` and exports the
+   apps. It runs by itself when the user manager starts (the first session after boot, SSH too),
+   which on a home with older dotfiles happened before step 2. It takes minutes: do not log out or reboot until the
    "Sistema a punt" notification (an interrupted box is created again at the next login).
 4. Check: `sudo bootc status` (the image and its tag), `systemctl --failed`.
 
