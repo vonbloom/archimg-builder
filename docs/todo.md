@@ -69,7 +69,8 @@ pushes only upload changed layers). The VM disk is a zvol on zeus' Kingston SA40
 
 ## Storage
 
-- [ ] **Compress the existing data.** `compress=zstd:1` (2026-10-07) only applies to new writes;
+- [ ] **Compress the existing data.** `compress=zstd:1` (2026-10-07, active on the P14s since the
+      p14s-2026-10-07 deployment, 2026-10-08) only applies to new writes;
       the installer compressed the first deployment, everything written since then is not.
       `btrfs filesystem defragment -r -czstd /home` would compress `/home`, but it unshares the
       extents with the btrbk snapshots of `~/.gnupg` (small) and rewrites every file (SSD
@@ -86,13 +87,3 @@ pushes only upload changed layers). The VM disk is a zvol on zeus' Kingston SA40
       of `user-.slice`) and testing that it kills a dev container and not userland.
 - [ ] **sched-ext** (`scx_lavd`, an interactivity and power aware scheduler for laptops) on top of
       the BORE scheduler of linux-cachyos: optional experiment (`scx-scheds`, `scx_loader`).
-
-## After the next deploy (P14s), verify
-
-- [ ] Memory tuning: `cat /sys/module/zswap/parameters/enabled` (N), `zramctl` (~29 G),
-      `sysctl vm.dirty_bytes vm.vfs_cache_pressure`, `cat
-      /sys/kernel/mm/transparent_hugepage/khugepaged/max_ptes_none` (409).
-- [ ] Compression: `findmnt -no OPTIONS /` shows `compress=zstd:1` and `noatime` (needs the boot
-      template and fstab change on the laptop before the deploy).
-- [ ] Timers: `systemctl list-timers btrfs-scrub@-.timer`, `systemctl --user list-timers
-      podman-cleanup.timer`.

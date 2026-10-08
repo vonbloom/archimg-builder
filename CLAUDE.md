@@ -280,7 +280,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Podman storage** (`podman-cleanup.timer`, user, monthly, sway layer): removes images unused
   by any container for 30 days and old VS Code server versions in the dev containers' shared
   `vscode` volume (VS Code adds one per update and never removes them: 10 versions, 6 GB in
-  2026-10). It never removes containers or volumes.
+  2026-10). It never removes containers or volumes. After a VS Code update, windows of several
+  dev containers restored at once race to install the new server into that shared volume: the
+  losers fail (`mv -n ...` then `rmdir: ... Directory not empty`), "Reload Window" fixes them (the
+  server is installed by then). Accepted (2026-10-08): `dev.containers.cacheVolume: false` (a
+  server per container) or `window.restoreWindows: one` would avoid it at a permanent cost.
 - **First userland setup** (`deploy-userland`, at any login, SSH too): it takes minutes, and ending
   the session or rebooting meanwhile stops the box mid-setup. `distrobox assemble create` skips
   existing boxes, so such a box never got its exports (bootc T480 rehearsal, 2026-10-08):
