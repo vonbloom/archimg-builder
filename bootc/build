@@ -31,12 +31,14 @@ podman build --pull=always --no-cache --no-hostname -f bootc/Containerfile "${bu
 podman run --rm --entrypoint pacman "$IMAGE" -Q >"$PKGS_DIR/$RECIPE-$TAG.pkgs"
 
 # One layer per group of packages instead of one per Containerfile step (the recipe step alone is
-# ~3.5 GB). chunkah reads the pacman database (DBPath in the image's pacman.conf).
+# ~3.5 GB). chunkah reads the pacman database (DBPath in the image's pacman.conf). The version goes
+# to the config labels (bootc's ostree backend reads them) and the manifest annotations (the
+# composefs backend reads only these: bootc-dev/bootc#2227)
 CHUNKAH_CONFIG_STR=$(podman inspect "$IMAGE")
 export CHUNKAH_CONFIG_STR
 loaded=$(podman run --rm --pull=always --mount=type=image,src="$IMAGE",target=/chunkah \
 	-e CHUNKAH_CONFIG_STR "$CHUNKAH" build --label ostree.bootable=1 --label containers.bootc=1 \
-	--label org.opencontainers.image.version="$TAG" \
+	--label org.opencontainers.image.version="$TAG" --annotation org.opencontainers.image.version="$TAG" \
 	--compressed --max-layers 128 | podman load -q)
 id=${loaded##*:}
 [[ -n $id ]] || { echo "chunkah produced no image: $loaded" >&2; exit 1; }
