@@ -23,8 +23,13 @@ T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` boot
   with [chunkah](https://github.com/coreos/chunkah) and pushes it to the registry as
   `<recipe>:YYYY-MM-DD` and `<recipe>:latest`. The package list goes to `/mnt/repo/bootc/<recipe>/`
   for the notification.
-- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`) and garbage-collects the
-  registry. Both run under the same lock as the arkdep builds, one at a time.
+- Each image is signed with the build server's sigstore key when pushed; the signature lives in
+  the registry next to it (`sha256-<digest>.sig`), and the bootc systems refuse an unsigned image
+  of `192.168.2.50:5000` (`overlay/etc/containers/policy.json`, `registries.d/50-distro-builder.yaml`,
+  public key `keys/distro-builder-sigstore.pub` copied to `/etc/pki/containers/distro-builder.pub`).
+  The status page marks each image "signada" or "sense signar".
+- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`), with their signatures, and
+  garbage-collects the registry. Both run under the same lock as the arkdep builds, one at a time.
 - Scheduled weekly by `build-bootc@<recipe>.timer` for the recipes in `BOOTC_RECIPES` of
   `install` (default `t480`); run it now, for any recipe, with
   `sudo systemctl start build-bootc@p14s` and follow it with `journalctl -fu build-bootc@p14s`.
@@ -191,7 +196,7 @@ the installer ISO (`cow_spacesize=2G`), `bootc/install` downloaded from GitHub:
 
 - Done: the registry on the build server (`insecure` in `registries.conf.d`), retention
   (`prune`), `bootc` packaged once in `[aur]` instead of compiled in every build.
-- Image signing (cosign + `policy.json` on the clients) instead of the GPG-signed arkdep repository.
+- Done (2026-10-08): image signing, sigstore (see the main README, Signatures).
 - Machine-specific kernel arguments: `install` passes the `/home` mount, the swap partition and
   `resume=` with `--karg`, and they survive `bootc upgrade` (rehearsal). Hibernation: not tested.
 - btrbk (`snapshot_dir /arkdep/snapshots`), `arkdep-diff`. Done: `notify-image`, the status page,

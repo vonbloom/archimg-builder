@@ -38,6 +38,7 @@ h2 { font-size: 17px; margin: 28px 0 10px; }
 .card h3 { margin: 0 0 6px; font-size: 15px; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; flex: none; }
 .pill.latest { background: var(--accent); margin-left: 6px; }
+.pill.signed { background: var(--ok); margin-left: 6px; } .pill.unsigned { background: var(--never); margin-left: 6px; }
 .pill.ok { background: var(--ok); } .pill.running { background: var(--run); }
 .pill.failed { background: var(--fail); } .pill.never { background: var(--never); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; }
@@ -226,7 +227,9 @@ function renderImages() {
       const key = `bootc/${recipe}/${img.tag}`;
       const toggle = () => { openDiffs.has(key) ? openDiffs.delete(key) : openDiffs.add(key); renderImages(); };
       rows.push(h("tr", {},
-        h("td", { class: "mono", title: `${ref}:${img.tag}` }, img.tag, img.latest ? h("span", { class: "pill latest" }, "latest") : null),
+        h("td", { class: "mono", title: `${ref}:${img.tag}` }, img.tag, img.latest ? h("span", { class: "pill latest" }, "latest") : null,
+          img.signed ? h("span", { class: "pill signed", title: "Signada amb la clau sigstore del servidor" }, "signada")
+            : h("span", { class: "pill unsigned", title: "Sense signatura: els sistemes bootc la rebutgen" }, "sense signar")),
         h("td", { title: when(img.created) }, ago(img.created)),
         h("td", { class: "num", title: "Comprimida, al registre" }, size(img.size)),
         h("td", { class: "num" }, img.layers),

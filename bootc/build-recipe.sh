@@ -56,8 +56,10 @@ overlays post_bootstrap
 mapfile -t pkgs < <(lists package.list | grep -vE "$skip")
 pacman -S --noconfirm --needed "${pkgs[@]}"
 overlays post_install
-# Files only bootc systems need, before the presets (80-bootc.preset enables bootc-update.timer)
+# Files only bootc systems need, before the presets (80-bootc.preset enables bootc-update.timer),
+# and the public key that the policy.json of the overlay checks the image signatures with
 copy_overlay /ctx/bootc/overlay
+install -D -m 644 /ctx/keys/distro-builder-sigstore.pub /etc/pki/containers/distro-builder.pub
 sed -i 's/ altfiles//' /etc/nsswitch.conf
 
 # /usr/local becomes a link to /var/usrlocal, and bootc never updates /var after the install:

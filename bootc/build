@@ -11,7 +11,10 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
 
 RECIPE=${1:?A recipe must be specified}
-REGISTRY=${REGISTRY:-localhost:5000}
+# The name clients pull from: the signature names the image it signs (matchRepository in the
+# clients' policy.json), so the push goes to the LAN address, not localhost
+REGISTRY=${REGISTRY:-192.168.2.50:5000}
+SIGSTORE_DIR=${SIGSTORE_DIR:-/etc/distro-builder/sigstore}  # private key and its passphrase, root only
 PKGS_DIR=${PKGS_DIR:-/mnt/repo/bootc/$RECIPE}
 CHUNKAH=${CHUNKAH:-quay.io/coreos/chunkah:latest}
 read -r TAG BUILD_TIME < <(date +'%Y-%m-%d %H%M')
@@ -43,10 +46,20 @@ loaded=$(podman run --rm --pull=always --mount=type=image,src="$IMAGE",target=/c
 id=${loaded##*:}
 [[ -n $id ]] || { echo "chunkah produced no image: $loaded" >&2; exit 1; }
 
-for tag in "$TAG" latest; do
-	podman push --tls-verify=false "$id" "$REGISTRY/$RECIPE:$tag"
-done
-echo "Pushed $REGISTRY/$RECIPE:$TAG ($id)"
+# Signed with the build server's sigstore key: the signature goes to the registry next to the image
+# (sha256-<digest>.sig, /etc/containers/registries.d/50-distro-builder.yaml), and the bootc systems
+# refuse unsigned images (bootc/overlay/etc/containers/policy.json). One signature covers both
+# tags: they name the same manifest digest
+sign=()
+if [[ -r $SIGSTORE_DIR/distro-builder.private ]]; then
+	sign=(--sign-by-sigstore-private-key "$SIGSTORE_DIR/distro-builder.private"
+		--sign-passphrase-file "$SIGSTORE_DIR/passphrase")
+else
+	echo "No signing key ($SIGSTORE_DIR): the image is not signed, bootc systems will refuse it" >&2
+fi
+podman push --tls-verify=false "${sign[@]}" "$id" "$REGISTRY/$RECIPE:$TAG"
+podman push --tls-verify=false "$id" "$REGISTRY/$RECIPE:latest"
+echo "Pushed $REGISTRY/$RECIPE:$TAG ($id)${sign:+, signed}"
 
 # The registry holds the images: do not keep two ~4 GB copies on the build server's disk
 podman rmi "$IMAGE" "$id" >/dev/null

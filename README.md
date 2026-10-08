@@ -93,13 +93,22 @@ run unreviewed AUR code, never see the key. It lives only in `/etc/distro-builde
 mode 700) on the server, backed up in the homelab vault, from which the "Build server" play
 restores it. Without the key (a local test run) nothing is signed and the scripts say so.
 
+The bootc images are signed with a second key, in sigstore format (ECDSA P-256, public part in
+`keys/distro-builder-sigstore.pub`), the format `podman`, `skopeo` and bootc verify natively: the
+private key and its passphrase live in `/etc/distro-builder/sigstore` (root, mode 700) and in the
+homelab vault, like the GPG key. `bootc/build` signs each image when pushing it; the signature is
+stored in the registry next to the image (`sha256-<digest>.sig`).
+
 Clients get the public key from this repository, not from the server they verify:
 
 - laptops: `/arkdep/keys/trusted-keys`, which arkdep checks every image against with `gpgv`
   (`gpg_signature_check` in `/arkdep/config`: `1` verifies when a signature exists, `2` refuses
   unsigned images). The installer sets it up; on an existing machine:
   `sudo sh -c 'gpg --dearmor < keys/distro-builder.asc > /arkdep/keys/trusted-keys'`;
-- the `[aur]` clients: `pacman-key --add` + `--lsign-key` (see [aur/README.md](aur/README.md)).
+- the `[aur]` clients: `pacman-key --add` + `--lsign-key` (see [aur/README.md](aur/README.md));
+- bootc systems: `/etc/pki/containers/distro-builder.pub` in the image, required for
+  `192.168.2.50:5000` by `/etc/containers/policy.json` (bootc refuses unsigned updates);
+  `bootc/install` sets the same up in the live system before pulling the image.
 
 ### Notifications
 

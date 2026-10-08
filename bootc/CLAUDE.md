@@ -18,7 +18,19 @@
   `pacman -S`. Local test runs: `REGISTRY=127.0.0.1:5000 PKGS_DIR=... AUR_SERVER=... AUR_SIGLEVEL=Never`.
 - `bootc/overlay/` holds files only bootc images need: the registry as insecure in
   `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
-- No image signing yet (cosign + `policy.json` on the clients), see `bootc/README.md`.
+- Signing (sigstore, since 2026-10-08): `bootc/build` pushes the dated tag with
+  `--sign-by-sigstore-private-key /etc/distro-builder/sigstore/distro-builder.private
+  --sign-passphrase-file .../passphrase` (root only, restored from the homelab vault) and `latest`
+  unsigned (same digest, same signature). The push goes to `192.168.2.50:5000`, not localhost: the
+  signature names the reference it was pushed as, and the clients' policy uses `matchRepository`.
+  podman only writes sigstore attachments with `use-sigstore-attachments` in registries.d: the server
+  gets `overlay/etc/containers/registries.d/50-distro-builder.yaml` from `install`. The clients'
+  `policy.json` keeps Arch's default (accept anything) for every other registry, so distrobox and dev
+  container images are unaffected. composefs bootc pulls through skopeo's image proxy with the default
+  config, which applies `/etc/containers/policy.json` (`bootc_composefs/repo.rs`). `prune` deletes the
+  `sha256-<digest>.sig` tag with its image. Check a policy by hand with skopeo in a container:
+  `skopeo copy --policy P --registries.d D --src-tls-verify=false docker://192.168.2.50:5000/t480:latest dir:/tmp/x`
+  (an unsigned image: "A signature was required, but no signature exists").
 - Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` in
   `build-recipe.sh`'s `preset-all`) runs `bootc-update`:
   `bootc upgrade` (stage only) and `/run/bootc-update/staged` (recipe, version, package list URL)

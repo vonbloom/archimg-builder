@@ -27,6 +27,12 @@ ln -sf "$(pwd)"/serve/distro-status.tmpfiles /etc/tmpfiles.d/distro-status.conf
 systemd-tmpfiles --create /etc/tmpfiles.d/distro-status.conf
 # Copied, not linked: polkitd cannot read the admin home directory
 install -m 644 serve/distro-trigger.rules /etc/polkit-1/rules.d/50-distro-trigger.rules
+# bootc/build signs the bootc images with a sigstore key and podman writes the signatures to the
+# registry next to them: same registries.d file as the bootc systems
+install -D -m 644 bootc/overlay/etc/containers/registries.d/50-distro-builder.yaml \
+	/etc/containers/registries.d/50-distro-builder.yaml
+[[ -r /etc/distro-builder/sigstore/distro-builder.private ]] ||
+	echo "No sigstore key in /etc/distro-builder/sigstore (homelab vault): bootc images will not be signed" >&2
 systemctl daemon-reload
 
 systemctl enable --now build-aur.timer

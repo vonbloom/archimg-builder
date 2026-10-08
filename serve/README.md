@@ -48,5 +48,5 @@ see the page and start builds.
 ## Registry
 
 `distro-registry.container` runs `registry:2` on port 5000 (plain HTTP, storage
-`/mnt/repo/registry`, deletes enabled for `bootc/prune`) for the bootc images: see
-[`../bootc/README.md`](../bootc/README.md).
+`/mnt/repo/registry`, deletes enabled for `bootc/prune`) for the bootc images and their sigstore
+signatures (tags `sha256-<digest>.sig`): see [`../bootc/README.md`](../bootc/README.md).

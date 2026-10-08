@@ -38,6 +38,11 @@ for i in "${!tags[@]}"; do
 		tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')
 	[[ -n $digest ]] || { echo "no digest for $RECIPE:$tag" >&2; exit 1; }
 	curl -fsS -X DELETE "$api/manifests/$digest"
+	# Its sigstore signature, a tag of its own (bootc/build)
+	# (none for the images pushed before 2026-10-08)
+	sig=$({ curl -fsSI "${accept[@]}" "$api/manifests/${digest/:/-}.sig" 2>/dev/null || true; } |
+		tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')
+	[[ -n $sig ]] && curl -fsS -X DELETE "$api/manifests/$sig" && echo "delete $RECIPE:${digest/:/-}.sig"
 	rm -f "$PKGS_DIR/$RECIPE-$tag.pkgs"
 	deleted=$((deleted + 1))
 done

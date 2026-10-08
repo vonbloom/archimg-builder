@@ -25,7 +25,8 @@ ci/       check: static checks (shellcheck, Python syntax, stray files, exec bit
 bootc/    the recipes as bootc images (trial, the T480): Containerfile, build-recipe.sh,
           build (chunkah + push to the registry), prune, install (from the ISO), overlay/; design
           and VM results in bootc/README.md
-keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer
+keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer;
+          distro-builder-sigstore.pub: public key of the bootc image signatures
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also
           podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
 ```

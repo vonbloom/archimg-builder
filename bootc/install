@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install a bootc image from the build server's registry onto existing partitions, keeping an
-# existing /home partition. Run as root from a live system (the installer ISO booted with
+# existing /home partition. The image's signature is checked (sigstore, keys/ of this repository). Run as root from a live system (the installer ISO booted with
 # cow_spacesize=2G, room to install podman; the image goes to a tmpfs, ~5 GB of RAM).
 #
 #   install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
@@ -90,6 +90,26 @@ fi
 mkdir -p /etc/containers/registries.conf.d
 printf '[[registry]]\nlocation = "%s"\ninsecure = true\n' "$REGISTRY" \
 	>/etc/containers/registries.conf.d/50-distro-builder.conf
+# The image must carry the build server's sigstore signature (bootc/build), like every update on
+# the installed system (bootc/overlay/etc/containers/policy.json): the public key comes from this
+# repository, like this script; the signature from the registry, next to the image
+mkdir -p /etc/pki/containers /etc/containers/registries.d
+curl -fsSL -o /etc/pki/containers/distro-builder.pub \
+	https://raw.githubusercontent.com/vonbloom/distro-builder/main/keys/distro-builder-sigstore.pub
+printf 'docker:\n  %s:\n    use-sigstore-attachments: true\n' "$REGISTRY" \
+	>/etc/containers/registries.d/50-distro-builder.yaml
+cat >/etc/containers/policy.json <<EOF
+{
+    "default": [{"type": "insecureAcceptAnything"}],
+    "transports": {
+        "docker": {
+            "$REGISTRY": [{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/distro-builder.pub",
+                           "signedIdentity": {"type": "matchRepository"}}]
+        },
+        "docker-daemon": {"": [{"type": "insecureAcceptAnything"}]}
+    }
+}
+EOF
 podman pull "$IMAGE"
 
 old_root_uuid=$(uuid "$ROOT" || true)

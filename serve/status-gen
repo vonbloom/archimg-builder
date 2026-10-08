@@ -235,7 +235,8 @@ def registry_get(path, accept=None):
 
 def bootc_images(repo):
     """bootc images per recipe in the registry (dated tags, newest first), with the package changes
-    from the lists bootc/build writes to <repo>/bootc/<recipe>/. Empty if the registry is down."""
+    from the lists bootc/build writes to <repo>/bootc/<recipe>/ and whether they are signed.
+    Empty if the registry is down."""
     try:
         names = registry_get("/v2/_catalog")[0].get("repositories") or []
     except (OSError, ValueError):
@@ -263,6 +264,8 @@ def bootc_images(repo):
                 "size": sum(layer["size"] for layer in manifest.get("layers", [])),
                 "layers": len(manifest.get("layers", [])),
                 "latest": digest is not None and digest == latest,
+                # bootc/build's sigstore signature: a tag named after the manifest digest
+                "signed": digest is not None and f"{digest.replace(':', '-')}.sig" in tags,
                 "packages": len(pkgs) if pkgs is not None else None,
                 "kernel": kernel,
                 "_pkgs": pkgs,
@@ -272,7 +275,8 @@ def bootc_images(repo):
             img["diff"] = pkg_diff(prev, img["_pkgs"]) if prev is not None and img["_pkgs"] is not None else None
         for img in images:
             del img["_pkgs"]
-        out[name] = images
+        if images:  # a repository whose images were all deleted stays in the catalog
+            out[name] = images
     return out
 
 
