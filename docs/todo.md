@@ -99,6 +99,16 @@ Upstream issues with a local workaround, to drop when they are fixed in a bootc 
 - [ ] AUR `bootc` without the `selinux` feature (reported in the AUR comments): `aur/local/bootc`
       while the AUR package links libselinux.
 
+## arkdep upstream
+
+- [ ] arkanelinux/arkdep#53: `arkdep deploy` computes the boot entry's file name (with the time)
+      for every template line, so an entry written across a second boundary is split in two: a
+      title-only `<time>-<image>+3.conf` and the rest under the next second, shown by its file
+      name (p14s-2026-10-08). No workaround in the images: merge them by hand or let the entry go
+      with its deployment. Also reported there: the conflict check before writing never matches,
+      and `arkdep cleanup` never removes the boot entry and kernel of an untracked deployment
+      (`[[ -f ...*glob* ]]`); `remove_deployment` does.
+
 ## Storage
 
 - [ ] **Compress the existing data.** `compress=zstd:1` (2026-10-07, active on the P14s since the

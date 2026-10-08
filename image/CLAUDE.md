@@ -66,6 +66,10 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Firmware**: never use the `linux-firmware` meta package; pick split packages per device. To find
   what a machine needs: `modinfo -F firmware` over `lsmod` and map files to packages with
   `pacman -Ql linux-firmware-*`.
+- **Split boot entries** (arkdep 2026.08.17, arkanelinux/arkdep#53): a deploy can write the
+  entry's title and the rest into two files a second apart. The menu then shows the deployment
+  by its file name plus a title-only entry; the deployment boots fine. Fix by hand on the ESP
+  (`sudo sed -i '1i title ...' <entry>` and remove the title-only file) if it bothers.
 - **dracut modules left out** (`depends/generic/.../dracut.conf.d/20-omit-unused.conf`, both the
   arkdep and the bootc images): no LUKS (`crypt`, `systemd-cryptsetup`, `dm`, `fido2`, `pkcs11`),
   RAID, LVM, TPM measurements, `hwdb` or fsck in the initramfs. Encrypting a disk or using RAID,
