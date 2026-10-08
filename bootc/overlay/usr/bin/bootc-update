@@ -19,7 +19,9 @@ staged = (json.load(sys.stdin).get("status") or {}).get("staged")
 if staged:
     image = staged["image"]
     recipe = image["image"]["image"].rsplit("/", 1)[-1].split(":")[0]  # 192.168.2.50:5000/t480:latest
-    version = image.get("version") or ""  # org.opencontainers.image.version, the build date
+    # org.opencontainers.image.version, the build date tag; bootc 1.17.0 leaves it null on
+    # composefs: the creation date is the same (the build server runs in UTC)
+    version = image.get("version") or (image.get("timestamp") or "")[:10]
     print("recipe=" + recipe)
     print("version=" + version)
     if version:

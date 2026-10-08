@@ -51,6 +51,22 @@ These tests compiled bootc in the Containerfile (since replaced by the `[aur]` p
   `/usr` until the next reboot (try packages without rebuilding).
 - Rootless podman and distrobox work as `roger`.
 
+## T480 rehearsal (VM, bootc 1.17.0 -> 1.17.1, 2026-10-08)
+
+A VM with the T480's layout (ESP, swap, ext4 root, ext4 `/home` with the user's files) booted from
+the installer ISO (`cow_spacesize=2G`), `bootc/install` downloaded from GitHub:
+
+- Install in ~1 min (pull from the registry included). Boots in 7-8 s, no failed units; sudo, iwd,
+  the `/home` partition at `/var/home`, swap (priority 10, after zram), the firmware boot entry.
+- `bootc upgrade` to the next build staged it in 8 s (changed layers only). After the reboot the
+  install-time kernel arguments (`/home` and swap mounts, `resume=`, `rootflags`) were still there,
+  and the `/etc` 3-way merge applied the image's corrected modes (`/etc/systemd` 775 -> 755,
+  libvirt's `default.xml` 644 -> 600). The previous image stays as the rollback entry.
+- `bootc status` shows no `version` on composefs (1.17.0 and 1.17.1) although the image has the
+  label: `bootc-update` falls back to the image's creation date.
+- The `userland` distrobox broke when its first setup was interrupted (see the dotfiles'
+  pre-init hook): not bootc specific.
+
 ## Problems found
 
 - bootcrew's Arch image has failed to build every day since 2026-08-31 (CI). Building bootc on
@@ -74,7 +90,7 @@ These tests compiled bootc in the Containerfile (since replaced by the `[aur]` p
   (`prune`), `bootc` packaged once in `[aur]` instead of compiled in every build.
 - Image signing (cosign + `policy.json` on the clients) instead of the GPG-signed arkdep repository.
 - Machine-specific kernel arguments: `install` passes the `/home` mount, the swap partition and
-  `resume=` with `--karg`; that they survive `bootc upgrade` is not tested yet, nor hibernation.
+  `resume=` with `--karg`, and they survive `bootc upgrade` (rehearsal). Hibernation: not tested.
 - btrbk (`snapshot_dir /arkdep/snapshots`), `arkdep-diff`. Done: `notify-image`, the status page,
   updates (`bootc-update.timer`) and the waybar indicator.
 - btrfs is "expected to work but not tested" upstream with the composefs backend; it worked here.
