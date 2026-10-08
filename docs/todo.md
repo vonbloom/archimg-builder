@@ -105,7 +105,14 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       - Cost: ~5 min per build, ~10 GB of temporary disk (56 GB free). Catches what breaks the
         generic boot (initramfs and dracut modules, composefs setup, `/etc` merge, failing
         units, emergency mode), not hardware specific drivers (i915, Wi-Fi) or the desktop.
-- [ ] **Push chunkah's output with skopeo** instead of `podman load` + `podman push`.
+- [x] **Push chunkah's output with skopeo** instead of `podman load` + `podman push` (2026-10-09).
+      Test build of t480 to `test/t480`: 9 min 49 s instead of ~18, memory peak 3 GB instead of
+      4.7-6.9 GB, 1.5 min of CPU instead of ~4.5 (no import, no recompression). After the recipe
+      layer is committed: chunkah 15 s, skopeo pull 9 s (first run), push of all 128 layers to an
+      empty repository 64 s. Tags, OCI manifest, the four annotations and the sigstore signature
+      checked; the signature accepted by a copy of `:latest` with the T480's policy. The first
+      real build re-uploads every layer to `t480` (chunkah's gzip bytes), and the T480 downloads
+      the whole image (~1 GiB) once.
       - Today chunkah writes a gzip-compressed OCI archive (`--compressed` also gzips the whole
         archive around the already compressed layers) to stdout; `podman load` decompresses it
         and writes every layer uncompressed into containers-storage (~3.5 GB on the zvol of
