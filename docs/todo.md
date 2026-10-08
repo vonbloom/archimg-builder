@@ -5,11 +5,14 @@
 Measured 2026-10-07: 31.6 s = 16.1 s firmware + 3.5 s loader + 0.9 s kernel + 7.5 s initrd +
 3.6 s userspace. The firmware part cannot be helped; the initrd and loader parts can.
 
-- [ ] **amdgpu in the initramfs costs ~4 s.** `force_drivers+=" amdgpu "` (`p14s/.../10-gpu.conf`)
-      makes `dracut-pre-udev` run `modprobe amdgpu` synchronously before udev starts: no other
-      initrd work happens from 1.5 s until the driver starts probing at 5.5 s (same on every
-      boot). It is there for Plymouth: Plymouth ignores simpledrm unless the kernel command line
-      has `plymouth.use-simpledrm`, and waits up to `DeviceTimeout=8` s for a real KMS driver.
+- [x] **amdgpu in the initramfs costs ~4 s: kept forced (decided 2026-10-08 after test boots).**
+      `force_drivers+=" amdgpu "` (`p14s/.../10-gpu.conf`) makes `dracut-pre-udev` run `modprobe
+      amdgpu` synchronously before udev starts: no other initrd work happens from 1.5 s until the
+      driver starts probing at 5.5 s (same on every boot). It is there for Plymouth, which ignores
+      simpledrm (the EFI framebuffer, built into linux-cachyos, up at 1.45 s) until `DeviceTimeout`
+      (8 s) unless told to use it (`src/daemon/plymouthd-settings.c`, `plymouthd-policy.c`):
+      `UseSimpledrm=1` or `UseSimpledrmNoLuks=1` (Fedora's default) in plymouthd.conf, or
+      `plymouth.use-simpledrm` on the command line.
       - **Cause (2026-10-07, measured in a KVM VM booting the same vmlinuz + initramfs):** not the
         CPU speed. The VM, on a host CPU at full clock, takes the same 3.9 s, and the kernel's own
         initramfs unpack is as fast on the laptop (177 ms) as in the VM (212 ms), so the initrd
@@ -19,28 +22,46 @@ Measured 2026-10-07: 31.6 s = 16.1 s firmware + 3.5 s loader + 0.9 s kernel + 7.
         checking every traceable function of the module (`ftrace_module_enable` ->
         `test_for_valid_rec` -> `kallsyms_lookup`, ~0.2 ms each). Each lookup scans the module
         symbol table linearly, and amdgpu has 15,828 `__mcount_loc` entries and 75,071 symbols.
-        Sorting the ORC unwind table (`unwind_module_init`) adds ~0.5 s. It is the same in every
-        boot and in the real root too: only where it blocks can change.
-      - Proposal: drop amdgpu from `force_drivers` (keep `virtio_gpu` for `iso/test-vm`) and add
-        `plymouth.use-simpledrm` to the boot template. The splash then draws on the EFI framebuffer,
-        and amdgpu loads from the real root in parallel with the other services. sway still waits
-        for it, so the expected gain is ~2-3 s plus a smaller initramfs (no amdgpu firmware, see
-        below), not the full 4 s. Check the splash, the handover to amdgpu (flicker) and resume
-        from hibernation.
-      - Same question for `i915` on the T480 once it runs the image (big module, same ftrace cost).
-      - Reproduce: `qemu-system-x86_64 -enable-kvm -cpu host -smp 16 -m 8G -display none -serial
-        file:LOG -kernel /boot/arkdep/<deployment>/vmlinuz -initrd .../initramfs-linux.img -append
-        'console=ttyS0 root=LABEL=NONE ignore_loglevel systemd.log_target=kmsg initcall_debug'`
-        and compare the timestamps of `dracut pre-udev hook` and `amdgpu: Virtual CRAT table`.
-- [ ] **The initramfs is 64 MB (119 MB unpacked)**, read by the firmware from the ESP (part of the
-      3.5 s loader time): 29 MB of amdgpu firmware for every AMD GPU (only `renoir_*` is used),
-      14 MB `hwdb.bin`, plus dracut modules this system does not use. Proposal for
-      `depends/generic/.../dracut.conf.d`: `omit_dracutmodules+=" hwdb mdraid crypt
-      systemd-cryptsetup fido2 pkcs11 nvdimm lunmask qemu-net virtfs virtiofs modsign
-      systemd-pcrextend "` (keep `qemu` for `iso/test-vm`) and `nofscks="yes"` (btrfs has no boot
-      fsck; `xfsprogs` is no longer in the images since 2026-10-08). Removing amdgpu (above) also drops its firmware. Check
-      the size with `lsinitrd` on the build and that both laptops and `iso/test-vm` still boot.
-      Previous deployment stays in the boot menu as a fallback (`deploy_keep=2`).
+        Sorting the ORC unwind table (`unwind_module_init`) adds ~0.5 s. Wherever the module
+        loads, this is paid.
+      - **Test boots (2026-10-08, P14s docked, lid closed, two DisplayPort monitors on the dock;
+        one-shot entries with test initramfs images, same deployment):**
+
+        | | amdgpu forced | no amdgpu + `plymouth.use-simpledrm` | `add_drivers` (unforced) |
+        |---|---|---|---|
+        | initrd | 7.4 s | 1.7 s | 7.3 s |
+        | Plymouth starts | 6.2 s | 1.9 s | 2.0 s, waits for amdgpu |
+        | tty1 login | ~11.7 s | ~6.1 s | ~11.2 s |
+        | amdgpu ready | 5.9 s | 12.4 s | 6.4 s |
+        | initramfs | 57 MB | 22 MB | 57 MB |
+
+        Without amdgpu the splash showed at once but deformed (the EFI mode on the dock's monitors
+        has another aspect ratio), then tty1 stretched, until amdgpu, loaded by the real root in
+        8 s instead of 4, took over at 12.4 s (the monitors blank and resync). A login before that
+        would also start sway on simpledrm. Unforced, amdgpu still holds the initrd:
+        `dracut-initqueue` waits for udev to settle before `/sysroot` is mounted. On the dock
+        Plymouth is not seen with amdgpu either (forced or not): the monitors take seconds to
+        resync after its modeset, by which time the splash is over. Undocked, the forced driver
+        shows a clean splash from ~6 s.
+      - The same trade-off applies to `i915` on the T480; not tested there.
+      - Reproduce the load cost: `qemu-system-x86_64 -enable-kvm -cpu host -smp 16 -m 8G -display
+        none -serial file:LOG -kernel /boot/arkdep/<deployment>/vmlinuz -initrd
+        .../initramfs-linux.img -append 'console=ttyS0 root=LABEL=NONE ignore_loglevel
+        systemd.log_target=kmsg initcall_debug'` and compare the timestamps of `dracut pre-udev
+        hook` and `amdgpu: Virtual CRAT table`.
+      - Test initramfs images without root (identical size to the image's own build):
+        `unshare -r dracut --no-hostonly -c /dev/null --confdir <dir> --tmpdir ~/.cache/<dir>
+        --kver $(uname -r) <out>` (chown errors and 600/700 modes are user namespace artifacts,
+        harmless in an initramfs where everything runs as root; `--include` does not override
+        files the plymouth module installs). Boot one with a copy of the deployment's entry and
+        `bootctl set-oneshot <entry>.conf` (run sudo in a terminal).
+- [x] **Unused dracut modules omitted** (`depends/generic/.../dracut.conf.d/20-omit-unused.conf`,
+      2026-10-08): the initramfs, read by the firmware from the ESP (part of the 3.5 s loader
+      time), went from 63 MB (110 MB unpacked) to 57 MB (88 MB) in a test build, mostly
+      `hwdb.bin` (13 MB unpacked); booted fine in the test boots. To check on the next builds:
+      the T480 and `iso/test-vm` (the previous deployment stays in the boot menu,
+      `deploy_keep=2`). Most of the rest is amdgpu: its firmware for every AMD GPU (28 MB, already
+      zstd-compressed; only `renoir_*` is used) and the module (6 MB).
 
 ## bootc builds
 

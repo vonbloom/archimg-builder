@@ -66,6 +66,11 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Firmware**: never use the `linux-firmware` meta package; pick split packages per device. To find
   what a machine needs: `modinfo -F firmware` over `lsmod` and map files to packages with
   `pacman -Ql linux-firmware-*`.
+- **dracut modules left out** (`depends/generic/.../dracut.conf.d/20-omit-unused.conf`, both the
+  arkdep and the bootc images): no LUKS (`crypt`, `systemd-cryptsetup`, `dm`, `fido2`, `pkcs11`),
+  RAID, LVM, TPM measurements, `hwdb` or fsck in the initramfs. Encrypting a disk or using RAID,
+  LVM or TPM-bound secrets needs their modules back there first, or the system will not find
+  its root.
 - **Mirrors**: a single stalled mirror fails the whole transaction ("Operation too slow"); keep
   several servers in `common/mirrorlist`.
 - **Migrated files keep numeric GIDs** (`cp -p`): e.g. `wg0.key` is `root:systemd-network` (977, a
