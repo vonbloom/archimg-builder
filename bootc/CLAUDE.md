@@ -1,9 +1,10 @@
 # bootc images (`bootc/`)
 
 - `build-bootc@<recipe>`: `bootc/build` (podman build `--pull=always --no-cache --no-hostname`,
-  package list to `/mnt/repo/bootc/<recipe>/<recipe>-<date>.pkgs`, chunkah rechunk piped into
-  `podman load`, push `<recipe>:<date>` and `:latest` to `localhost:5000`, then remove the local
-  images: the server has little disk), then `bootc/prune` and `image/notify-image` with
+  package list to `/mnt/repo/bootc/<recipe>/<recipe>-<date>.pkgs`, chunkah rechunk into an OCI
+  directory layout in `/var/tmp` (`-o oci:`, gzip layers), pushed as it is by skopeo
+  (`copy --preserve-digests`) to `192.168.2.50:5000/<recipe>:<date>` (signed) and `:latest`, then
+  remove the local image), then `bootc/prune` and `image/notify-image` with
   `REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc`. Weekly, Sunday 13:00 Europe/Madrid.
 - Build and prune run under `/run/build-image.lock` with the other builds: memory, and the
   registry's `garbage-collect` must never run during a push (it deletes blobs of unfinished
@@ -16,6 +17,16 @@
 - `bootc` comes from `[aur]` (`aur/local/bootc`, without the `selinux` feature, which links
   libselinux), signed: the build trusts `keys/distro-builder.asc` and adds `[aur]` only for that
   `pacman -S`. Local test runs: `REGISTRY=127.0.0.1:5000 PKGS_DIR=... AUR_SERVER=... AUR_SIGLEVEL=Never`.
+  Test runs on the server: `REPOSITORY=test/<recipe> PKGS_DIR=/var/tmp/...` from a copy of the
+  checkout (`git ls-files -z | tar --null -T - -c...`, never edit `/home/admin/distro-builder`:
+  its `git pull --ff-only` would fail), then delete the test manifests through the registry API.
+- chunkah (`quay.io/coreos/chunkah`) and skopeo (`quay.io/skopeo/stable`) run as containers pinned
+  to a version: chunkah's gzip output is byte-identical for identical input (two runs, 2026-10-09),
+  so unchanged layers keep their digests and clients skip them; a new chunkah could change every
+  digest and make every client download the whole image (~1 GiB). Bump the pin on purpose.
+  The push went from `podman load` + `podman push` (an uncompressed import of ~3.5 GB, then
+  recompression) to skopeo on 2026-10-09: the first image pushed that way uploads, and clients
+  download, every layer once (podman's gzip bytes differ from chunkah's).
 - `bootc/overlay/` holds files only bootc images need: the registry as insecure in
   `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
 - Signing (sigstore, since 2026-10-08): `bootc/build` pushes the dated tag with
@@ -23,8 +34,9 @@
   --sign-passphrase-file .../passphrase` (root only, restored from the homelab vault) and `latest`
   unsigned (same digest, same signature). The push goes to `192.168.2.50:5000`, not localhost: the
   signature names the reference it was pushed as, and the clients' policy uses `matchRepository`.
-  podman only writes sigstore attachments with `use-sigstore-attachments` in registries.d: the server
-  gets `overlay/etc/containers/registries.d/50-distro-builder.yaml` from `install`. The clients'
+  skopeo (like podman) only writes sigstore attachments with `use-sigstore-attachments` in
+  registries.d: the server gets `overlay/etc/containers/registries.d/50-distro-builder.yaml` from
+  `install`, and `bootc/build` mounts `/etc/containers/registries.d` into the skopeo container. The clients'
   `policy.json` keeps Arch's default (accept anything) for every other registry, so distrobox and dev
   container images are unaffected. composefs bootc pulls through skopeo's image proxy with the default
   config, which applies `/etc/containers/policy.json` (`bootc_composefs/repo.rs`). `prune` deletes the

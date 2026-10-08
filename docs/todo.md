@@ -70,10 +70,77 @@ download and install take 1.6 min; committing the recipe layer (~3.5 GB, ~100k f
 chunkah + `podman load` ~7 min (and the 6.9 GB memory peak of the 8 GB VM); the push 1 min (later
 pushes only upload changed layers). The VM disk is a zvol on zeus' Kingston SA400 SATA SSDs.
 
-- [ ] Push chunkah's output directly (`skopeo copy oci-archive:... docker://localhost:5000/...`,
-      skopeo in a container like chunkah) instead of `podman load` + `podman push`: ~2.4 GB of
-      compressed writes instead of 3.5 GB plus the import, lower memory peak. The manifest stays
-      OCI as chunkah writes it.
+Layer reuse (measured 2026-10-09 in the registry): the two t480 builds of 2026-10-08, 20 min
+apart with recipe changes in between, share 104 of 128 layers: the update downloads 162 MiB of the
+1035 MiB image. chunkah's layers are reproducible for unchanged packages (directory mtimes come
+from the packages' build dates). 2026-10-07 -> 2026-10-08 shared none: the owner/mode fix of
+`/usr`, `/usr/lib` and `/usr/share` (`build-recipe.sh`) changed those parent directories in every
+layer, a one-off. Still to see on a regular weekly build: which layers change on every build
+(VERSION_ID with the time in os-release, install dates in the pacman database, the initramfs?).
+
+- [ ] **Boot test before publishing `latest`.** The composefs backend sets up no boot counting
+      (bootc docs, `bootc-boot-failure-detection.7.md`: "likely to be added in the future"), unlike
+      arkdep's `+3` entries: an image that does not boot is only found when the T480, which
+      stages updates every 4 h by itself, reboots into it, and the user has to pick the previous
+      entry by hand. Gate `latest` (what the T480 follows) on a boot in a VM, the manual VM
+      rehearsal of 2026-10-08 automated:
+      - Nested KVM for VM 202: zeus (i5-8500) has `kvm_intel nested=Y`, but VM 202 runs with
+        `cpu: x86-64-v3`, which hides VMX (no `/dev/kvm`). By hand: `qm set 202 --cpu host`,
+        restart the VM, then `host_vars/zeus.yml` (and `pve_guests` support for `cpu` if missing).
+      - Server packages: `qemu-system-x86` and `ovmf` (homelab `builders` play).
+      - `bootc/test <recipe> <image>`: `bootc install to-disk --via-loopback --composefs-backend
+        --bootloader systemd --filesystem btrfs --karg console=ttyS0` into a sparse raw file (in a
+        privileged container of the new image, like `bootc/install` does from the ISO), then
+        `qemu-system-x86_64 -enable-kvm -machine q35 -m 4G` with OVMF, the disk, no network,
+        `-serial file:...`, and wait (with a timeout, ~5 min) for the getty's `login:` on ttyS0.
+        Also fail on `emergency`/`Failed to start` lines. Test from the signed registry image
+        (the reference the T480 pulls) or check that the image's own `policy.json`, which requires
+        signatures for `192.168.2.50:5000`, does not refuse a local source reference.
+      - `bootc/build`: push the dated tag (signed) as today, run the test, and only then point
+        `latest` at it. On failure keep `latest`, notify Home Assistant with the tail of the
+        serial log (`notify-failure@` already runs on a failed unit) and keep the log next to
+        the `.pkgs` file.
+      - bootc-dev/bootc#2557 and #2558 need no workaround in the test: OVMF boots the
+        `EFI/BOOT` fallback bootc installs, and without a menu timeout the default entry boots.
+      - Cost: ~5 min per build, ~10 GB of temporary disk (56 GB free). Catches what breaks the
+        generic boot (initramfs and dracut modules, composefs setup, `/etc` merge, failing
+        units, emergency mode), not hardware specific drivers (i915, Wi-Fi) or the desktop.
+- [ ] **Push chunkah's output with skopeo** instead of `podman load` + `podman push`.
+      - Today chunkah writes a gzip-compressed OCI archive (`--compressed` also gzips the whole
+        archive around the already compressed layers) to stdout; `podman load` decompresses it
+        and writes every layer uncompressed into containers-storage (~3.5 GB on the zvol of
+        worn SATA SSDs); `podman push` then reads them back and compresses the layers it cannot
+        match to registry blobs through its blob info cache.
+      - Instead: `chunkah build ... --compressed -o oci:/out/<recipe>` (an OCI directory layout:
+        layers gzip-compressed once, no outer archive) into a work directory on the server (the
+        compressed image is ~1.0 GiB today), then
+        `skopeo copy --preserve-digests --dest-tls-verify=false --sign-by-sigstore-private-key ...
+        --sign-passphrase-file ... oci:<dir> docker://192.168.2.50:5000/<recipe>:<date>` and the
+        same copy, unsigned, to `:latest` (blobs already there are skipped, the manifest digest
+        stays the same, so the signature covers both tags as today). `--preserve-digests` makes
+        skopeo fail rather than rewrite the manifest. skopeo reads `registries.d` for
+        `use-sigstore-attachments` like podman: either Debian's `skopeo` package on the server
+        (homelab `builders` play) or `quay.io/skopeo/stable` in a container with
+        `/etc/containers/registries.d` and the key directory mounted.
+      - Gains: ~1 GiB written once instead of the 3.5 GB import plus the re-read, no gzip of the
+        archive and no recompression; less page cache charged to the unit (its 4.7-6.9 GB
+        "memory peak" includes it). chunkah alone with `-o oci:` takes 26-29 s (2026-10-09,
+        rechunking the published t480 image on the server), so nearly all of the ~7 min of
+        "chunkah + `podman load`" is the import: most of it should go.
+      - Upstream issues: every manifest annotation (`org.opencontainers.image.version` for
+        bootc-dev/bootc#2227, `created`, `base.digest`, `base.name`) is written by chunkah itself
+        (checked in its `oci:` output), and `--preserve-digests` copies the manifest unchanged,
+        so the #2227 workaround keeps working. The same flag keeps the image OCI: the composefs
+        backend fails on Docker v2s2 manifests (bootc-dev/bootc#1703, open); skopeo would fail
+        instead of converting. #2557 and #2558 concern `bootc install`, not the push. The
+        `podman inspect`/`podman rmi` of the built image stay.
+      - One-off cost: the first image pushed this way has chunkah's gzip bytes instead of
+        podman's (0 of 128 compressed layers matched the registry's in the test), so the T480
+        downloads the whole image once (~1 GiB). Afterwards reuse depends on chunkah's gzip
+        staying byte-identical for identical input: two runs on the same input gave the same
+        manifest and all 128 layers byte for byte. Pin `CHUNKAH` to a version tag instead of
+        `latest`, so that a compression library update does not trigger another full download
+        unannounced.
 - [ ] Layered images instead of one Containerfile per recipe: `base` (generic) -> desktop (`sway`,
       and `mango` to try mangowm, in cachyos-extra-v3) -> device (ucode, firmware, tlp.d, dracut
       GPU config, initramfs), published as `<device>-<desktop>`. Each extra combination only builds

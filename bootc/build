@@ -2,9 +2,11 @@
 # Usage: build <recipe>
 # Build the bootc image of an arkdep recipe (bootc/Containerfile), split it into per-package layers
 # with chunkah (an update then downloads only the packages that changed) and push it to the
-# registry as <recipe>:YYYY-MM-DD and <recipe>:latest. The package list is written to PKGS_DIR for
-# notify-image.
+# registry as <recipe>:YYYY-MM-DD and <recipe>:latest with skopeo. The package list is written to
+# PKGS_DIR for notify-image.
 # Local test run: REGISTRY=127.0.0.1:5000 PKGS_DIR=/some/dir AUR_SERVER=... AUR_SIGLEVEL=Never
+# Test run on the build server: REPOSITORY=test/<recipe> PKGS_DIR=/some/dir (next to the real
+# images, not over them; delete its manifests through the registry API afterwards)
 
 set -euo pipefail
 
@@ -14,9 +16,13 @@ RECIPE=${1:?A recipe must be specified}
 # The name clients pull from: the signature names the image it signs (matchRepository in the
 # clients' policy.json), so the push goes to the LAN address, not localhost
 REGISTRY=${REGISTRY:-192.168.2.50:5000}
+REPOSITORY=${REPOSITORY:-$RECIPE}
 SIGSTORE_DIR=${SIGSTORE_DIR:-/etc/distro-builder/sigstore}  # private key and its passphrase, root only
 PKGS_DIR=${PKGS_DIR:-/mnt/repo/bootc/$RECIPE}
-CHUNKAH=${CHUNKAH:-quay.io/coreos/chunkah:latest}
+# Pinned: an update of chunkah's gzip could change the bytes of unchanged layers, and every client
+# would download the whole image again
+CHUNKAH=${CHUNKAH:-quay.io/coreos/chunkah:v0.7.0}
+SKOPEO=${SKOPEO:-quay.io/skopeo/stable:v1.22.3}
 read -r TAG BUILD_TIME < <(date +'%Y-%m-%d %H%M')
 IMAGE=localhost/bootc-$RECIPE
 
@@ -33,34 +39,46 @@ podman build --pull=always --no-cache --no-hostname -f bootc/Containerfile "${bu
 
 podman run --rm --entrypoint pacman "$IMAGE" -Q >"$PKGS_DIR/$RECIPE-$TAG.pkgs"
 
+# chunkah's output, an OCI directory layout (~1 GiB): /var/tmp, not the tmpfs /tmp
+work=$(mktemp -d /var/tmp/bootc-build.XXXXXX)
+trap 'rm -rf -- "$work"' EXIT
+
 # One layer per group of packages instead of one per Containerfile step (the recipe step alone is
 # ~3.5 GB). chunkah reads the pacman database (DBPath in the image's pacman.conf). The version goes
 # to the config labels (bootc's ostree backend reads them) and the manifest annotations (the
-# composefs backend reads only these: bootc-dev/bootc#2227)
+# composefs backend reads only these: bootc-dev/bootc#2227). The layers are gzip-compressed once,
+# here, and pushed as they are: no import into containers-storage (~3.5 GB uncompressed) and no
+# recompression by podman push
 CHUNKAH_CONFIG_STR=$(podman inspect "$IMAGE")
 export CHUNKAH_CONFIG_STR
-loaded=$(podman run --rm --pull=always --mount=type=image,src="$IMAGE",target=/chunkah \
+podman run --rm --mount=type=image,src="$IMAGE",target=/chunkah -v "$work:/out" \
 	-e CHUNKAH_CONFIG_STR "$CHUNKAH" build --label ostree.bootable=1 --label containers.bootc=1 \
 	--label org.opencontainers.image.version="$TAG" --annotation org.opencontainers.image.version="$TAG" \
-	--compressed --max-layers 128 | podman load -q)
-id=${loaded##*:}
-[[ -n $id ]] || { echo "chunkah produced no image: $loaded" >&2; exit 1; }
+	--compressed --max-layers 128 -o oci:/out/image
 
 # Signed with the build server's sigstore key: the signature goes to the registry next to the image
-# (sha256-<digest>.sig, /etc/containers/registries.d/50-distro-builder.yaml), and the bootc systems
-# refuse unsigned images (bootc/overlay/etc/containers/policy.json). One signature covers both
-# tags: they name the same manifest digest
+# (sha256-<digest>.sig, /etc/containers/registries.d/50-distro-builder.yaml, mounted into the
+# skopeo container), and the bootc systems refuse unsigned images
+# (bootc/overlay/etc/containers/policy.json). One signature covers both tags: they name the same
+# manifest digest
+mounts=(-v "$work:/work" -v /etc/containers/registries.d:/etc/containers/registries.d:ro)
 sign=()
 if [[ -r $SIGSTORE_DIR/distro-builder.private ]]; then
+	mounts+=(-v "$SIGSTORE_DIR:$SIGSTORE_DIR:ro")
 	sign=(--sign-by-sigstore-private-key "$SIGSTORE_DIR/distro-builder.private"
 		--sign-passphrase-file "$SIGSTORE_DIR/passphrase")
 else
 	echo "No signing key ($SIGSTORE_DIR): the image is not signed, bootc systems will refuse it" >&2
 fi
-podman push --tls-verify=false "${sign[@]}" "$id" "$REGISTRY/$RECIPE:$TAG"
-podman push --tls-verify=false "$id" "$REGISTRY/$RECIPE:latest"
-echo "Pushed $REGISTRY/$RECIPE:$TAG ($id)${sign:+, signed}"
+# --preserve-digests: the manifest goes up byte for byte (chunkah's annotations, OCI format: the
+# composefs backend fails on Docker v2s2 manifests, bootc-dev/bootc#1703); skopeo fails instead of
+# rewriting it. Blobs already in the registry are skipped
+copy=(copy --preserve-digests --dest-tls-verify=false --digestfile /work/digest)
+skopeo() { podman run --rm --network host "${mounts[@]}" "$SKOPEO" "$@"; }
+skopeo "${copy[@]}" "${sign[@]}" oci:/work/image "docker://$REGISTRY/$REPOSITORY:$TAG"
+skopeo "${copy[@]}" --quiet oci:/work/image "docker://$REGISTRY/$REPOSITORY:latest"
+echo "Pushed $REGISTRY/$REPOSITORY:$TAG ($(<"$work/digest"))${sign:+, signed}"
 
-# The registry holds the images: do not keep two ~4 GB copies on the build server's disk
-podman rmi "$IMAGE" "$id" >/dev/null
+# The registry holds the image: do not keep a ~4 GB copy on the build server's disk
+podman rmi "$IMAGE" >/dev/null
 podman image prune -f >/dev/null

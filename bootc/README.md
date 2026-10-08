@@ -20,8 +20,8 @@ T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` boot
 
 - `bootc/build <recipe>` builds `bootc/Containerfile` (which applies the arkdep recipe with
   `build-recipe.sh` and installs `bootc` from `[aur]`), splits the image into per-package layers
-  with [chunkah](https://github.com/coreos/chunkah) and pushes it to the registry as
-  `<recipe>:YYYY-MM-DD` and `<recipe>:latest`. The package list goes to `/mnt/repo/bootc/<recipe>/`
+  with [chunkah](https://github.com/coreos/chunkah) and pushes it to the registry with skopeo
+  (the compressed layers as chunkah writes them) as `<recipe>:YYYY-MM-DD` and `<recipe>:latest`. The package list goes to `/mnt/repo/bootc/<recipe>/`
   for the notification.
 - Each image is signed with the build server's sigstore key when pushed; the signature lives in
   the registry next to it (`sha256-<digest>.sig`), and the bootc systems refuse an unsigned image
