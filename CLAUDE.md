@@ -295,6 +295,10 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `podman mount`; written once the packages are installed, before the init hooks) before
   assembling, and the dotfiles' pre-init hook removes a leftover pacman lock. A failing init hook
   also left the T480's userland without exports: the dotfiles' hooks must not fail.
+- **Lid and suspend** (`depends/generic/.../etc/systemd/logind.conf`): the lid suspends only on
+  battery (`HandleLidSwitchExternalPower=ignore`): logind counts as docked only while an external
+  display is connected, so turning off the P14s' monitors on the dock (lid closed) suspended it.
+  `IdleAction=suspend` never fires: no session sets an idle hint. swayidle only locks (10 min).
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
@@ -321,4 +325,5 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `fakeroot pacman -Sy --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf`, then
   `pacman -Sp --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf <pkgs>`.
 - The host's own sync databases come from the image build and are stale.
-- Hardware info of other machines: `ssh roger@192.168.2.98` (T480, currently Artix, not arkdep yet).
+- Hardware info of other machines: `ssh roger@192.168.2.182` (T480, bootc `t480` image since
+  2026-10-08).
