@@ -294,9 +294,20 @@ Before, on the old system:
 
 Install:
 
-1. Write the installer ISO to a USB stick (step 1 of "Installing a machine" below) and boot it in
-   UEFI mode (ThinkPad: F12). At the boot menu press `e` and add `cow_spacesize=2G` to the kernel
-   options: the live system installs podman (the image goes to a tmpfs, ~5 GB of RAM).
+1. Download the installer ISO, check its signature and write it to a USB stick (the whole device,
+   e.g. `/dev/sda`, not a partition: `TRAN` says `usb`; everything on it is lost):
+
+   ```sh
+   curl -O http://192.168.2.50/iso/sha256sums.txt -O http://192.168.2.50/iso/sha256sums.txt.sig
+   iso=$(awk '{ print $2 }' sha256sums.txt); curl -O "http://192.168.2.50/iso/$iso"
+   gpg --dearmor < ~/distro-builder/keys/distro-builder.asc > distro-builder.gpg
+   gpgv --keyring ./distro-builder.gpg sha256sums.txt.sig sha256sums.txt && sha256sum -c sha256sums.txt
+   lsblk -d -o NAME,SIZE,TRAN,MODEL
+   sudo dd if="$iso" of=/dev/sdX bs=4M oflag=direct conv=fsync status=progress
+   ```
+
+   Boot it in UEFI mode (ThinkPad: F12). At the boot menu press `e` and add `cow_spacesize=2G` to
+   the kernel options: the live system installs podman (the image goes to a tmpfs, ~5 GB of RAM).
 2. Network: a cable, or `iwctl station wlan0 connect <SSID>`.
 3. Download and run the installer (it lists the disk, asks to type the root partition to confirm,
    and asks the user's password twice):
@@ -350,9 +361,8 @@ when the installer changes or when the live system is too old for new hardware.
 ### Installing a machine
 
 1. Download the ISO, `sha256sums.txt` and `sha256sums.txt.sig` from `http://192.168.2.50/iso/`,
-   check them (`gpgv --keyring <(gpg --dearmor < keys/distro-builder.asc) sha256sums.txt.sig
-   sha256sums.txt && sha256sum -c sha256sums.txt`) and write the ISO to a USB stick
-   (`dd if=distro-installer-*.iso of=/dev/sdX bs=4M oflag=sync`). The installed system verifies
+   check them and write the ISO to a USB stick (the commands are in step 1 of "Installing a bootc
+   image" above; `gpgv` cannot read the keyring from a pipe such as `<(gpg --dearmor ...)`). The installed system verifies
    every image with the same key.
 2. Boot it in UEFI mode (Secure Boot off) and run `/root/install.sh`.
 3. Answer the questions:
