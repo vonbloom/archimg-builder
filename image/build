@@ -30,9 +30,10 @@ podman run \
 	-v "$REPO_PATH":/root/target:Z \
 	"$BUILDER_IMAGE" "$RECIPE"
 
-# Sign the new image (arkdep checks <image>.tar.zst.sig), and any older one still unsigned
+# Sign the new image (arkdep checks <image>.tar.zst.sig), also when it replaced one of the same
+# name, and any older one still unsigned
 if can_sign; then
-	sign_missing "$REPO_PATH"/*.tar.zst
+	sign_stale "$REPO_PATH"/*.tar.zst
 else
 	echo "No signing key ($SIGN_GNUPGHOME): images not signed" >&2
 fi

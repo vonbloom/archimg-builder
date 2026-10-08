@@ -22,10 +22,12 @@ sign() {
 	done
 }
 
-# sign_missing <file>...: sign the files that have no signature yet
-sign_missing() {
+# sign_stale <file>...: sign the files without a signature or with one older than the file. A
+# rebuild with the same name (a second image build on the same day) replaces the file and keeps
+# the old signature: arkdep then rejected the image ("BAD signature", 2026-10-08)
+sign_stale() {
 	local f
 	for f; do
-		[[ -s $f.sig ]] || sign "$f" || return 1
+		[[ -s $f.sig && $f.sig -nt $f ]] || sign "$f" || return 1
 	done
 }

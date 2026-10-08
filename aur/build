@@ -39,7 +39,7 @@ if can_sign; then
 		for sig in *.pkg.tar.zst.sig; do
 			[[ -e ${sig%.sig} ]] || rm -v "$sig" # package removed by aur-build.sh or paccache
 		done
-		sign_missing ./*.pkg.tar.zst
+		sign_stale ./*.pkg.tar.zst
 		for db in *.db.tar.zst *.files.tar.zst; do
 			sign "$db"
 			ln -sf "$db.sig" "${db%.tar.zst}.sig"

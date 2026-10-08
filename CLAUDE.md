@@ -293,7 +293,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Signatures**: images, `[aur]` and ISO checksums are signed outside the builder containers
   (`lib/sign.sh`; the key never enters a container, which runs unreviewed AUR code). Anything
   that deletes published files must delete their `.sig` too (`prune`, `aur/build` cleans orphan
-  package signatures). The installer copies `keys/distro-builder.asc` (built into the ISO through
+  package signatures). `sign_stale` also re-signs a file newer than its signature: a second build
+  of an image on the same day replaces `<recipe>-<date>.tar.zst` under the same name, and the
+  kept signature made arkdep reject it ("BAD signature", p14s-2026-10-07). The installer copies `keys/distro-builder.asc` (built into the ISO through
   `--build-context keys=../keys`) to `/arkdep/keys/trusted-keys`.
 - **Waybar icons**: the font is JetBrainsMono Nerd Font, which lacks Font Awesome 5/6 codepoints
   (e.g. `U+F590`, `U+F769`): use Nerd Font glyphs (`md-*`) and check new ones with
