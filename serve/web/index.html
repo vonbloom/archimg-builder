@@ -292,11 +292,10 @@ async function load() {
 
 // Manual builds (serve/build-trigger)
 async function startBuild(u, button) {
-  // arkdep and bootc images share /run/build-image.lock
-  const locked = x => x.kind === "image" || x.kind === "bootc";
-  const queued = locked(u) && data.units.some(x => locked(x) && x.state === "running");
+  // Every build takes /run/build-image.lock: they run one at a time
+  const queued = data.units.some(x => x.unit !== u.unit && x.state === "running");
   if (!confirm(`Vols llançar ara la build «${unitTitle(u)}»?` +
-    (queued ? "\n\nJa hi ha una altra imatge en marxa: esperarà que acabi." : ""))) return;
+    (queued ? "\n\nJa hi ha una altra build en marxa: esperarà que acabi." : ""))) return;
   starting.add(u.unit); button.disabled = true; button.textContent = "Llançant…";
   try {
     const r = await fetch(`/api/build/${encodeURIComponent(u.unit)}`, { method: "POST", headers: { "X-Distro-Builder": "1" } });

@@ -42,13 +42,13 @@ RUN --mount=type=bind,source=keys/distro-builder.asc,target=/distro-builder.asc 
 RUN --mount=type=bind,source=.,target=/ctx bash /ctx/bootc/build-recipe.sh "$RECIPE"
 
 # Files only bootc systems need (the registry, AppArmor's view of /home)
-COPY bootc/overlay/ /
-
+# bootc/overlay is applied by build-recipe.sh, not COPY: COPY gives existing directories the
+# checkout's modes (775 on /etc/systemd with the server's umask 0002).
 # bootc's units need no preset ("disable *" in 81-custom.preset is fine): its generator and other
 # units pull them in. bootc-fetch-apply-updates.timer stays disabled: it reboots on its own, and it
 # only runs on ostree boots (/run/ostree-booted), not composefs ones. bootc-update.timer (overlay,
-# 80-bootc.preset) stages the newest image instead; the reboot is up to the user.
-RUN systemctl preset bootc-update.timer
+# 80-bootc.preset, enabled by build-recipe.sh's preset-all) stages the newest image instead; the
+# reboot is up to the user.
 
 # Kernel options of the boot template, minus what bootc sets (root, rootflags, resume)
 RUN --mount=type=bind,source=iso/airootfs/root/systemd-boot.template,target=/template \

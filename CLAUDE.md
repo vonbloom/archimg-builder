@@ -103,7 +103,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `aur/build` after the container (packages and `aur.db`). Client: the `userland` distrobox
   (`~/.dotfiles/distrobox/.config/distrobox/pre_init_distrobox_assemble.sh`).
 - `build-aur.timer`: daily 04:00 UTC + up to 30 min random delay, `Persistent=true`. Logs:
-  `journalctl -u build-aur`. Manual run: `sudo systemctl start build-aur` or `sudo aur/build`.
+  `journalctl -u build-aur`. It takes `/run/build-image.lock` like the image builds: the bootc
+  builds install bootc from `[aur]`, and the 8 GB VM cannot hold chunkah and a Rust compile at once
+  (both started by hand on 2026-10-08: ~2 GB rustc next to `podman load`). Manual run: `sudo systemctl start build-aur` or `sudo aur/build`.
 - `aur/build [--rebuild-builder] [repo_path]` rebuilds the `aur-builder` image when missing, older
   than 7 days or requested, then runs `aur-build.sh` in it. `aur-build.sh` and `makepkg.conf` are
   mounted from the checkout (the copies baked into the image are only a fallback), so changes to
@@ -140,7 +142,7 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `podman load`, push `<recipe>:<date>` and `:latest` to `localhost:5000`, then remove the local
   images: the server has little disk), then `bootc/prune` and `image/notify-image` with
   `REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc`. Weekly, Sunday 13:00 Europe/Madrid.
-- Build and prune run under `/run/build-image.lock` with the arkdep builds: two CPUs, and the
+- Build and prune run under `/run/build-image.lock` with the other builds: memory, and the
   registry's `garbage-collect` must never run during a push (it deletes blobs of unfinished
   uploads). prune deletes manifests through the API (`REGISTRY_STORAGE_DELETE_ENABLED`), runs
   `registry garbage-collect --delete-untagged` in the `distro-registry` container and then restarts
@@ -154,26 +156,33 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `bootc/overlay/` holds files only bootc images need: the registry as insecure in
   `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
 - No image signing yet (cosign + `policy.json` on the clients), see `bootc/README.md`.
-- Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` and
-  a `systemctl preset` after the overlay COPY, which comes after `preset-all`) runs `bootc-update`:
+- Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` in
+  `build-recipe.sh`'s `preset-all`) runs `bootc-update`:
   `bootc upgrade` (stage only) and `/run/bootc-update/staged` (recipe, version, package list URL)
   for the waybar indicator. The version is the `org.opencontainers.image.version` label set by
   `bootc/build` (the date tag). `bootc-fetch-apply-updates.timer` stays disabled: it reboots by
   itself and only runs on ostree boots (`/run/ostree-booted`).
 - `arkdep-update-status` (sway layer) serves both: arkdep when `/arkdep/config` exists, bootc
   otherwise.
-- `build-recipe.sh` extracts overlays with `tar --no-same-owner --no-same-permissions
-  --no-overwrite-dir` (what arkdep-build's `cp -r` does). Plain `tar -xp` kept the checkout's UID
+- `build-recipe.sh` copies the overlays (the recipe's, then `bootc/overlay`) like arkdep-build's
+  `cp -r`: `tar --no-same-owner --no-same-permissions` into a staging directory, then `cp -r` to `/`
+  (existing files and directories keep owner and mode). Plain `tar -xp` kept the checkout's UID
   1000 and 775 modes, also on existing dirs (`/usr`, `/usr/lib`, `/etc/systemd`): sudo ignored
-  `sudoers.d` and iwd failed on D-Bus. Check new images with `find / -xdev -uid 1000`.
+  `sudoers.d` and iwd failed on D-Bus. `COPY` gave existing dirs the checkout's 775 (server umask
+  0002), and tar replaced existing files with the overlay's mode (libvirt's 600 `default.xml` became
+  644). Check new images with `find / -xdev -uid 1000` and `pacman -Qkk | grep mismatch` (normal:
+  `utempter`, `/var/...`).
 - bootc mounts the ESP read-only at `/boot` (`systemd.mount-extra=...:/boot:auto:ro`), so
   `systemd-boot-random-seed.service` is masked in `bootc/overlay` (systemd-boot refreshes the seed).
 - `bootc/install` (live ISO): podman storage on a tmpfs (overlay cannot sit on the live overlayfs
   root), `wipefs` + `mount -t btrfs` (udev's cached probe still says ext4), the target at
   `/target` in the container (`/mnt` links to `var/mnt` in a bootc image), user/hostname/Wi-Fi
   written to `/state/deploy/<id>/etc` and `/state/os/default/var` (`useradd --prefix`), and an
-  `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback). Rehearsed in a VM booted from
-  the ISO with a T480-like layout (2026-10-08).
+  `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback). It deletes the ESP's
+  `bootc_*.conf` entries (and `EFI/Linux/bootc_composefs-*`) whose root is the reformatted
+  partition or gone: they share title and sort key with the new one and the version is a hash, so
+  systemd-boot booted a stale one in a rehearsal. Rehearsed in a VM booted from the ISO with a
+  T480-like layout (2026-10-08).
 
 ## Installer ISO (`iso/`)
 

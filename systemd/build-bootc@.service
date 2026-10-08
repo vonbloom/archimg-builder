@@ -12,9 +12,9 @@ Type=oneshot
 # Bring the checkout up to date first (fast-forward only). A failed pull (GitHub down, local
 # changes) does not stop the build: it runs with the code already there.
 ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u admin -- git -C /home/admin/distro-builder pull --ff-only
-# One build at a time with the arkdep images (two CPUs). prune too: its garbage collection must not
-# run during another recipe's push
-ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/bootc/build %i
-ExecStartPost=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/bootc/prune %i
+# One build at a time with the other builds (memory, see build-aur.service). prune too: its garbage
+# collection must not run during another recipe's push. Both under one lock: with prune in its own
+# flock, a queued build took the lock in between and this unit waited for it, shown as running
+ExecStart=/usr/bin/flock /run/build-image.lock /bin/sh -c '/home/admin/distro-builder/bootc/build "$$1" && /home/admin/distro-builder/bootc/prune "$$1"' sh %i
 ExecStartPost=/usr/bin/env REPO_PATH=/mnt/repo/bootc/%i KIND=bootc /home/admin/distro-builder/image/notify-image %i
 TimeoutStartSec=6h

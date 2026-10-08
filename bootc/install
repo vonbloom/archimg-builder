@@ -92,6 +92,7 @@ printf '[[registry]]\nlocation = "%s"\ninsecure = true\n' "$REGISTRY" \
 	>/etc/containers/registries.conf.d/50-distro-builder.conf
 podman pull "$IMAGE"
 
+old_root_uuid=$(uuid "$ROOT" || true)
 # wipefs and an explicit type: otherwise mount still sees the old ext4 (udev's cached probe)
 wipefs -a "$ROOT"
 mkfs.btrfs -f -L ROOT "$ROOT"
@@ -100,6 +101,19 @@ mkdir -p "$TARGET"
 mount -t btrfs -o compress=zstd:1,noatime "$ROOT" "$TARGET"
 mkdir -p "$TARGET/boot"
 mount "$ESP" "$TARGET/boot"
+
+# Boot entries of an earlier bootc installation on this root partition (a reinstall, a repeated
+# run) or on a partition that no longer exists: same title and sort key as the new entry, and the
+# version is a hash, so systemd-boot could pick one as the default (seen in a rehearsal)
+for entry in "$TARGET"/boot/loader/entries/bootc_*.conf; do
+	[[ -f $entry ]] || continue
+	entry_root=$(sed -n 's/^options .*root=UUID=\([^ ]*\).*/\1/p' "$entry")
+	[[ -n $entry_root && ($entry_root == "$old_root_uuid" || -z $(blkid -U "$entry_root")) ]] || continue
+	echo "Removing the boot entry ${entry##*/} of a former installation (root UUID $entry_root)"
+	dir=$(sed -n 's|^linux /\(EFI/Linux/bootc_composefs-[0-9a-f]*\)/.*|\1|p' "$entry")
+	rm -f "$entry"
+	[[ -n $dir ]] && rm -r "$TARGET/boot/$dir"
+done
 
 kargs=(--karg "rootflags=compress=zstd:1,noatime")
 [[ -n $HOME_PART ]] && kargs+=(--karg "systemd.mount-extra=UUID=$(uuid "$HOME_PART"):/var/home:$(lsblk -dno FSTYPE "$HOME_PART"):defaults")
