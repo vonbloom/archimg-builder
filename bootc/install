@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-IMAGE= ROOT= ESP= HOME_PART= SWAP= HOSTNAME_NEW= WIFI=
+IMAGE='' ROOT='' ESP='' HOME_PART='' SWAP='' HOSTNAME_NEW='' WIFI=''
 USER_NAME=roger USER_UID=1000
 GROUPS_EXTRA=wheel,input,video,render,audio,kvm,libvirt
 REGISTRY=192.168.2.50:5000
@@ -112,7 +112,7 @@ for entry in "$TARGET"/boot/loader/entries/bootc_*.conf; do
 	echo "Removing the boot entry ${entry##*/} of a former installation (root UUID $entry_root)"
 	dir=$(sed -n 's|^linux /\(EFI/Linux/bootc_composefs-[0-9a-f]*\)/.*|\1|p' "$entry")
 	rm -f "$entry"
-	[[ -n $dir ]] && rm -r "$TARGET/boot/$dir"
+	[[ -n $dir ]] && rm -r "${TARGET:?}/boot/$dir"
 done
 
 kargs=(--karg "rootflags=compress=zstd:1,noatime")

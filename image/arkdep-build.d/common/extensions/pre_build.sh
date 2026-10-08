@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2154 # $variantdir is set by arkdep-build, which sources this file
 
 pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com
 pacman-key --lsign-key F3B607488DB35A47

@@ -9,14 +9,14 @@ PROTO=${3:-tcp} # Default to tcp if not specified
 case "$1" in
     allow)
         # Open a port and save
-        nft add element inet filter allowed_${PROTO} { $2 }
+        nft add element inet filter allowed_${PROTO} "{ $2 }"
         nft list ruleset > "$CONF"
         echo "Port $2 ($PROTO) opened."
         ;;
         
     deny)
         # Close a port and save
-        nft delete element inet filter allowed_${PROTO} { $2 } 2>/dev/null
+        nft delete element inet filter allowed_${PROTO} "{ $2 }" 2>/dev/null
         nft list table inet filter > "$CONF"
         echo "Port $2 ($PROTO) closed."
         ;;

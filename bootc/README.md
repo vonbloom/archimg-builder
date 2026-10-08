@@ -1,21 +1,114 @@
-# bootc images
+# bootc images (`bootc/`)
 
 Trial (since 2026-10-07) of [bootc](https://github.com/bootc-dev/bootc) as a replacement for
-arkdep: the same recipe (`image/arkdep-build.d/<recipe>`) built as a bootc container image, based
-on the Arch image of [bootcrew/mono](https://github.com/bootcrew/mono). Built and pushed to the
-build server's registry by `build-bootc@<recipe>` (see the main README). While arkdep and bootc are
-compared the T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` bootc
-image by hand); `install` sets the schedules.
+arkdep: the same recipes (`image/arkdep-build.d/<recipe>`) built as bootc container images, based
+on the Arch image of [bootcrew/mono](https://github.com/bootcrew/mono). While both are compared the
+T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` bootc image by hand);
+`../install` sets the schedules. Implementation notes and pitfalls: `CLAUDE.md` in this directory.
 
 - `Containerfile`: CachyOS v3 repositories and `linux-cachyos` like the recipe; `bootc` from the
   `[aur]` repository (`aur/local/bootc`: pinned version, no SELinux); composefs backend.
 - `build-recipe.sh`: applies the arkdep recipe in arkdep-build's order (package lists, overlays,
   presets, locale-gen), without arkdep, `arkane-keyring` and `nss-altfiles`.
 - `overlay/`: files only bootc systems need (the registry, AppArmor's `@{HOMEDIRS}`, the masked
-  `systemd-boot-random-seed.service`, `bootc-update.timer`: stages new images, see the main README).
+  `systemd-boot-random-seed.service`, `bootc-update.timer`: stages new images, see below).
 - `build`, `prune`: build, rechunk and push; retention in the registry.
 - `install`: installs an image from the installer ISO on existing partitions, keeping `/home` (see
-  the main README).
+  below).
+
+## Building and updates
+
+- `bootc/build <recipe>` builds `bootc/Containerfile` (which applies the arkdep recipe with
+  `build-recipe.sh` and installs `bootc` from `[aur]`), splits the image into per-package layers
+  with [chunkah](https://github.com/coreos/chunkah) and pushes it to the registry as
+  `<recipe>:YYYY-MM-DD` and `<recipe>:latest`. The package list goes to `/mnt/repo/bootc/<recipe>/`
+  for the notification.
+- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`) and garbage-collects the
+  registry. Both run under the same lock as the arkdep builds, one at a time.
+- Scheduled weekly by `build-bootc@<recipe>.timer` for the recipes in `BOOTC_RECIPES` of
+  `install` (default `t480`); run it now, for any recipe, with
+  `sudo systemctl start build-bootc@p14s` and follow it with `journalctl -fu build-bootc@p14s`.
+- On a bootc system `bootc-update.timer` (after boot and every 4 hours, skipped away from home)
+  downloads and stages the newest image of its tag; it starts on the next boot. The waybar
+  indicator (`arkdep-update-status`, same module as arkdep's) shows a staged image with its package
+  changes; a click (or `sudo bootc-update`) looks for a newer one now.
+- The registry (`serve/distro-registry.container`, `registry:2`, storage in `/mnt/repo/registry`)
+  serves plain HTTP on port 5000; the images list it as insecure in
+  `/etc/containers/registries.conf.d/50-distro-builder.conf`. A bootc system follows a recipe with
+  `bootc switch 192.168.2.50:5000/<recipe>:latest` and updates with `bootc upgrade`.
+- `bootc/install` installs an image on existing partitions from the installer ISO, keeping a
+  `/home` partition: see [below](#installing-a-bootc-image-keeping-home).
+
+## Installing a bootc image (keeping /home)
+
+`bootc/install` formats the root partition (btrfs, `zstd:1`, `noatime`), reuses the ESP
+(systemd-boot, first in the firmware boot order, a 5 s menu; other loaders stay), keeps the `/home`
+partition untouched (mounted at `/var/home`), enables a swap partition for hibernation, and creates
+the user (UID 1000, the arkdep installer's groups), the hostname and the Wi-Fi profile. Written for
+the T480 (Artix: ESP `p1`, swap `p2`, root `p3`, ext4 home `p4`) and rehearsed in a VM with the same
+layout.
+
+Before, on the old system:
+
+1. Back up what cannot be lost: the root partition is formatted (the home partition is not, but a
+   wrong partition name would be).
+2. The user's directory on the home partition must belong to UID 1000 (`--uid` otherwise).
+3. Copy the Wi-Fi profile into it (iwd keeps it in a root-only directory):
+   `sudo install -m 600 -o roger -g roger /var/lib/iwd/<SSID>.psk ~/`.
+4. Note the partitions: `lsblk -f`.
+
+Install:
+
+1. Download the installer ISO, check its signature and write it to a USB stick (the whole device,
+   e.g. `/dev/sda`, not a partition: `TRAN` says `usb`; everything on it is lost):
+
+   ```sh
+   curl -O http://192.168.2.50/iso/sha256sums.txt -O http://192.168.2.50/iso/sha256sums.txt.sig
+   iso=$(awk '{ print $2 }' sha256sums.txt); curl -O "http://192.168.2.50/iso/$iso"
+   gpg --dearmor < ~/distro-builder/keys/distro-builder.asc > distro-builder.gpg
+   gpgv --keyring ./distro-builder.gpg sha256sums.txt.sig sha256sums.txt && sha256sum -c sha256sums.txt
+   lsblk -d -o NAME,SIZE,TRAN,MODEL
+   sudo dd if="$iso" of=/dev/sdX bs=4M oflag=direct conv=fsync status=progress
+   ```
+
+   Boot it in UEFI mode (ThinkPad: F12). At the boot menu press `e` and add `cow_spacesize=2G` to
+   the kernel options: the live system installs podman (the image goes to a tmpfs, ~5 GB of RAM).
+2. Network: a cable, or `iwctl station wlan0 connect <SSID>`.
+3. Download and run the installer (it lists the disk, asks to type the root partition to confirm,
+   and asks the user's password twice):
+
+   ```sh
+   curl -O https://raw.githubusercontent.com/vonbloom/distro-builder/main/bootc/install
+   bash install --image 192.168.2.50:5000/t480:latest --root /dev/nvme0n1p3 --esp /dev/nvme0n1p1 \
+       --home /dev/nvme0n1p4 --swap /dev/nvme0n1p2 --hostname anubis --wifi <SSID>.psk
+   ```
+
+   It stops before formatting anything if a partition, the user's directory or the Wi-Fi file is
+   wrong, and can be run again after a failure.
+4. Reboot and remove the USB stick.
+
+First session:
+
+1. Log in on tty1: sway starts.
+2. If the home partition has an older `~/.dotfiles` checkout, update it (`git stash` local changes
+   first) and restow: `cd ~/.dotfiles && git pull && ./install`. `deploy-userland` only clones the
+   dotfiles when `~/.dotfiles` is missing, and only creates the distroboxes from
+   `~/.config/distrobox/default.ini`.
+3. `systemctl --user start deploy-userland` creates `playground` and `userland` and exports the
+   apps. It runs by itself when the user manager starts (the first session after boot, SSH too),
+   which on a home with older dotfiles happened before step 2. It takes minutes: do not log out or reboot until the
+   "Sistema a punt" notification (an interrupted box is created again at the next login).
+4. Check: `sudo bootc status` (the image and its tag), `systemctl --failed`.
+5. A home from another system can hold user configs that win over the image's: move them aside
+   (the T480's Artix home had `~/.config/rofi/config.rasi` with its own theme, GTK 3/4
+   `settings.ini` and `gtk.css`, a full `~/.config/pipewire/pipewire.conf` and links to old
+   dotfiles). Compare `ls ~/.config` with the P14s, which has none of them.
+
+Afterwards, updates are staged by `bootc-update.timer` and shown by the waybar indicator (see
+above), and start on the next boot. The boot menu lists each image as `Arch Linux (<recipe> <tag>)`
+with the previous one as a fallback; `sudo bootc rollback` makes the previous one the default.
+
+## Building and testing on a workstation
 
 ```
 podman build --no-hostname -f bootc/Containerfile --build-arg RECIPE=p14s -t localhost/p14s-bootc .

@@ -18,7 +18,7 @@ find "$REPO_PATH" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
 
 # Update database
 echo "Updating database..."
-> "$DB_PATH"
+: >"$DB_PATH"
 ls -r "$REPO_PATH"/*.tar.zst 2>/dev/null | while read -r file; do
     [[ -e $file ]] || continue
     FILENAME=$(basename "$file")

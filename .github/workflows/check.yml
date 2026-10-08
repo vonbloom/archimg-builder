@@ -1,0 +1,15 @@
+# Static checks of every push (ci/check: shellcheck, Python syntax, stray files, executable
+# commands, recipe structure). The builds run on the build server, not here.
+name: check
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static checks
+        run: ci/check
