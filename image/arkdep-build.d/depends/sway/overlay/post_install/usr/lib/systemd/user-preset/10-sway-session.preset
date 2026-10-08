@@ -18,3 +18,5 @@ disable podman.service
 # Started by sway-session.target, not at login (its [Install] says default.target)
 disable darkman.service
 enable deploy-userland.service
+# Secret Service: started on demand, unlocked by pam_gnome_keyring at login (/etc/pam.d/login)
+enable gnome-keyring-daemon.socket

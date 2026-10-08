@@ -1,5 +1,5 @@
 foot
-mesa-git
+mesa
 pipewire
 pipewire-pulse
 wireplumber
@@ -20,3 +20,5 @@ grim
 slurp
 darkman
 adw-gtk-theme
+# Secret Service for Brave and VS Code (userland box), unlocked at login (pam.d/login)
+gnome-keyring

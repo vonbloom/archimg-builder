@@ -1,3 +1,5 @@
 # Device specific packages.
 # Keep this file even if empty: arkdep-build releases before 2026.06.10 skip the
 # whole secondary stage (including depends package lists) when it is missing.
+# Vulkan for the Renoir iGPU (mesa itself is in the sway layer)
+vulkan-radeon

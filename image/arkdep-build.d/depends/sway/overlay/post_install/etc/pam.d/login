@@ -1,0 +1,13 @@
+#%PAM-1.0
+# Arch's login (util-linux) plus pam_gnome_keyring: the login password unlocks the "login" keyring,
+# the Secret Service of Brave and VS Code (userland box, on the host's session bus). The daemon
+# comes from gnome-keyring-daemon.socket (user preset of the sway layer). Optional: a missing or
+# failing keyring never blocks a login.
+
+auth       requisite    pam_nologin.so
+auth       include      system-local-login
+auth       optional     pam_gnome_keyring.so
+account    include      system-local-login
+session    include      system-local-login
+session    optional     pam_gnome_keyring.so auto_start
+password   include      system-local-login

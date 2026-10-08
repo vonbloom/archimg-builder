@@ -123,6 +123,14 @@ How `arkdep-build` processes a recipe (relevant constraints):
   battery (`HandleLidSwitchExternalPower=ignore`): logind counts as docked only while an external
   display is connected, so turning off the P14s' monitors on the dock (lid closed) suspended it.
   `IdleAction=suspend` never fires: no session sets an idle hint. swayidle only locks (10 min).
+- **Secret Service** (sway layer, since 2026-10-08): `gnome-keyring` (11 MB with gcr and gcr-4;
+  `oo7` has fewer dependencies but takes 25 MB and is 0.6), started by
+  `gnome-keyring-daemon.socket` (user preset) and unlocked at the tty login by `pam_gnome_keyring`
+  in `etc/pam.d/login` (overrides util-linux's file: keep it in line with it) and kept in sync on a
+  password change by `etc/pam.d/passwd` (shadow's). Brave and VS Code run in the userland box and
+  reach it on the host's session bus, but on sway they do not detect it: the dotfiles set
+  `--password-store=gnome-libsecret` (`brave-flags.conf`, `~/.vscode/argv.json`) once the images
+  have the keyring. Check with `secret-tool store --label=t a b` and `secret-tool lookup a b`.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
@@ -139,6 +147,7 @@ How `arkdep-build` processes a recipe (relevant constraints):
 ## Verifying changes without building
 
 - Resolve every package of a recipe against fresh repo databases (use bash; zsh does not word-split):
-  `fakeroot pacman -Sy --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf`, then
+  `unshare -r pacman -Sy --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf` (root in a
+  user namespace, which `pacman -Sy` requires; the host's mirrorlists are the image's), then
   `pacman -Sp --dbpath <tmp> --config image/arkdep-build.d/common/pacman.conf <pkgs>`.
 - The host's own sync databases come from the image build and are stale.

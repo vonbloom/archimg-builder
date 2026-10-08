@@ -1,5 +1,7 @@
 # VA-API video decoding for the UHD 620 (mesa has no VA-API driver for Intel)
 intel-media-driver
+# Vulkan for the UHD 620 (mesa itself is in the sway layer)
+vulkan-intel
 # Intel thermal management
 thermald
 # Thunderbolt 3 device authorization

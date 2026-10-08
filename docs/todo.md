@@ -38,7 +38,7 @@ Measured 2026-10-07: 31.6 s = 16.1 s firmware + 3.5 s loader + 0.9 s kernel + 7.
       `depends/generic/.../dracut.conf.d`: `omit_dracutmodules+=" hwdb mdraid crypt
       systemd-cryptsetup fido2 pkcs11 nvdimm lunmask qemu-net virtfs virtiofs modsign
       systemd-pcrextend "` (keep `qemu` for `iso/test-vm`) and `nofscks="yes"` (btrfs has no boot
-      fsck; drops `xfs_repair`/`xfs_db`). Removing amdgpu (above) also drops its firmware. Check
+      fsck; `xfsprogs` is no longer in the images since 2026-10-08). Removing amdgpu (above) also drops its firmware. Check
       the size with `lsinitrd` on the build and that both laptops and `iso/test-vm` still boot.
       Previous deployment stays in the boot menu as a fallback (`deploy_keep=2`).
 
