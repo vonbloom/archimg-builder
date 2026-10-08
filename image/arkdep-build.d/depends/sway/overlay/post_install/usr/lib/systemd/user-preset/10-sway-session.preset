@@ -20,3 +20,9 @@ disable darkman.service
 enable deploy-userland.service
 # Secret Service: started on demand, unlocked by pam_gnome_keyring at login (/etc/pam.d/login)
 enable gnome-keyring-daemon.socket
+# SSH keys are gpg-agent's (dotfiles): gcr's agent (from gcr-4, pulled by gnome-keyring) sets
+# SSH_AUTH_SOCK for everything systemd starts, and openssh's is unused. This file has no "disable *":
+# any other packaged user unit with an [Install] section is enabled
+disable gcr-ssh-agent.socket
+disable gcr-ssh-agent.service
+disable ssh-agent.socket

@@ -134,6 +134,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
   reach it on the host's session bus, but on sway they do not detect it: the dotfiles set
   `--password-store=gnome-libsecret` (`brave-flags.conf`, `~/.vscode/argv.json`) once the images
   have the keyring. Check with `secret-tool store --label=t a b` and `secret-tool lookup a b`.
+  gcr-4 also brings `gcr-ssh-agent`, which sets `SSH_AUTH_SOCK` for the systemd user manager: the
+  user preset disables it (and openssh's `ssh-agent.socket`), SSH keys are gpg-agent's. The user
+  preset has no `disable *`, so every packaged user unit with an `[Install]` section is enabled.
 - **Slow shutdown with containers**: rootless containers started outside systemd (VS Code
   devcontainers, distrobox) kept their conmon scopes alive until the 90 s stop timeout.
   `podman-stop-all.service` (user, sway layer) runs `podman stop --all` when the session ends, and
