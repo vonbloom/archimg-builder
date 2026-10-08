@@ -334,6 +334,10 @@ First session:
    which on a home with older dotfiles happened before step 2. It takes minutes: do not log out or reboot until the
    "Sistema a punt" notification (an interrupted box is created again at the next login).
 4. Check: `sudo bootc status` (the image and its tag), `systemctl --failed`.
+5. A home from another system can hold user configs that win over the image's: move them aside
+   (the T480's Artix home had `~/.config/rofi/config.rasi` with its own theme, GTK 3/4
+   `settings.ini` and `gtk.css`, a full `~/.config/pipewire/pipewire.conf` and links to old
+   dotfiles). Compare `ls ~/.config` with the P14s, which has none of them.
 
 Afterwards, updates are staged by `bootc-update.timer` and shown by the waybar indicator (see
 above), and start on the next boot. The boot menu lists each image as `Arch Linux (<recipe> <tag>)`
