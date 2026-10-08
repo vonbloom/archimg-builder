@@ -79,5 +79,15 @@ RUN sed -i 's|^HOME=.*|HOME=/var/home|' /etc/default/useradd && \
     printf 'd /var/roothome 0700 root root -\nd /run/media 0755 root root -\n' >> /usr/lib/tmpfiles.d/bootc-base-dirs.conf && \
     printf '[composefs]\nenabled = yes\n[sysroot]\nreadonly = true\n' > /usr/lib/ostree/prepare-root.conf
 
+# Recipe and build date in os-release: bootc titles the boot entries with PRETTY_NAME and versions
+# them with VERSION_ID (Arch has neither: every entry was "Arch Linux", versioned by a hash). The
+# Arch container image ships its own /etc/os-release (with the container build as VERSION_ID): link
+# it back to /usr/lib/os-release as on an installed Arch system
+ARG VERSION=unknown
+RUN sed -i "s/^PRETTY_NAME=.*/PRETTY_NAME=\"Arch Linux ($RECIPE $VERSION)\"/" /usr/lib/os-release && \
+    printf 'VERSION_ID=%s\nIMAGE_ID=%s\nIMAGE_VERSION=%s\n' "$VERSION" "$RECIPE" "$VERSION" >> /usr/lib/os-release && \
+    ln -sf ../usr/lib/os-release /etc/os-release && \
+    cat /etc/os-release
+
 LABEL containers.bootc=1
 RUN bootc container lint

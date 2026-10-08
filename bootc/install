@@ -159,5 +159,15 @@ else
 fi
 efibootmgr | grep -E '^(BootOrder|Boot[0-9A-F]{4}\* Linux Boot Manager)'
 
+# The boot menu, as the arkdep installer sets it. bootc only writes "timeout 5" when there is no
+# loader.conf, but bootctl install has just written one with every line commented out (no menu)
+cat >"$TARGET/boot/loader/loader.conf" <<EOF
+timeout 5
+console-mode max
+editor no
+auto-entries yes
+auto-firmware yes
+EOF
+
 fstrim -v "$TARGET" || true
 echo "Installed. Remove the USB stick and reboot; then: bootc status"

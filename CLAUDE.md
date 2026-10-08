@@ -181,8 +181,14 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `efibootmgr` entry (bootc only installs the `EFI/BOOT` fallback). It deletes the ESP's
   `bootc_*.conf` entries (and `EFI/Linux/bootc_composefs-*`) whose root is the reformatted
   partition or gone: they share title and sort key with the new one and the version is a hash, so
-  systemd-boot booted a stale one in a rehearsal. Rehearsed in a VM booted from the ISO with a
-  T480-like layout (2026-10-08).
+  systemd-boot booted a stale one in a rehearsal. It writes `loader.conf` like the arkdep
+  installer: bootc only writes `timeout 5` when the file is missing, and `bootctl install` has
+  just created it with every line commented out (no menu). Rehearsed in a VM booted from the ISO
+  with a T480-like layout (2026-10-08).
+- Boot entry titles: bootc uses `PRETTY_NAME` and `VERSION_ID` of the image's `/usr/lib/os-release`;
+  the Containerfile sets them to `Arch Linux (<recipe> <date>)` and the date (`VERSION` build arg
+  from `bootc/build`), and links `/etc/os-release` to it (the Arch container image ships its own
+  copy).
 
 ## Installer ISO (`iso/`)
 

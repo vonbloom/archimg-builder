@@ -83,6 +83,9 @@ the installer ISO (`cow_spacesize=2G`), `bootc/install` downloaded from GitHub:
 - bootc mounts the ESP read-only at `/boot`: `systemd-boot-random-seed.service` fails, masked.
 - `bootc install` creates no firmware boot entry (only the `EFI/BOOT/BOOTX64.EFI` fallback):
   `install` adds or reorders it with `efibootmgr`.
+- No boot menu: `bootctl install` writes a `loader.conf` with every line commented out, so bootc's
+  own `timeout 5` (only written when the file is missing) never lands; `install` writes it. Every
+  entry was titled "Arch Linux": the titles come from the image's os-release.
 
 ## Missing before real use
 

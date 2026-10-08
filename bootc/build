@@ -17,7 +17,7 @@ CHUNKAH=${CHUNKAH:-quay.io/coreos/chunkah:latest}
 TAG=$(date +%Y-%m-%d)
 IMAGE=localhost/bootc-$RECIPE
 
-build_args=(--build-arg "RECIPE=$RECIPE")
+build_args=(--build-arg "RECIPE=$RECIPE" --build-arg "VERSION=$TAG")
 [[ -n ${AUR_SERVER:-} ]] && build_args+=(--build-arg "AUR_SERVER=$AUR_SERVER")
 [[ -n ${AUR_SIGLEVEL:-} ]] && build_args+=(--build-arg "AUR_SIGLEVEL=$AUR_SIGLEVEL")
 
