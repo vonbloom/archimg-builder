@@ -15,4 +15,6 @@ ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u a
 # update during their pacman -Sy), and the 8 GB VM cannot hold chunkah (~7 GB peak) and a Rust
 # compile at once
 ExecStart=/usr/bin/flock /run/build-image.lock /home/admin/distro-builder/aur/build
+# New upstream releases of the own PKGBUILDs (aur/local), reported once; never fails the unit
+ExecStartPost=-/home/admin/distro-builder/aur/check-upstream
 TimeoutStartSec=3h

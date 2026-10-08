@@ -227,7 +227,9 @@ Prebuilt AUR packages for the `userland` distrobox, published as the pacman repo
   differently (e.g. `bootc`, built without SELinux support). Do not list them in `packages.list`.
   A local package is only built when its version (`pkgver`, `pkgrel`) is not in the repository
   yet: a new upstream version is published by bumping it there, and a version that fails to build
-  leaves the previous one in place.
+  leaves the previous one in place. After each run `aur/check-upstream` compares them with the
+  latest GitHub release of their `url=` and sends a Home Assistant notification, once per version,
+  when a newer one is out (`NOTIFY=echo STATE_DIR=/tmp/x aur/check-upstream` to try it).
 - Scheduled daily by `build-aur.timer`; run it now with `sudo systemctl start build-aur` and
   follow it with `journalctl -fu build-aur`.
 - PKGBUILD changes are not reviewed: only list packages you trust.

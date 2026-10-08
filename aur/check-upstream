@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Usage: check-upstream
+# Compare each own PKGBUILD (aur/local/<pkg>) with the latest release of its upstream project on
+# GitHub (taken from the PKGBUILD's url=) and report a newer one to Home Assistant, once per
+# version. Their versions only change by hand (aur-build.sh skips a version already in the
+# repository): this is the reminder to bump pkgver and sha256sums. Not the AUR package: it may lag
+# behind or be broken (bootc, see the PKGBUILD's header).
+# Run by build-aur.service after the build; a failed check never fails the unit.
+# Test run: NOTIFY=echo STATE_DIR=/some/tmp/dir aur/check-upstream
+
+set -uo pipefail
+
+LOCAL=${LOCAL:-$(dirname "$(readlink -f "$0")")/local}
+STATE_DIR=${STATE_DIR:-/var/lib/distro-builder/upstream}  # last version reported, per package
+NOTIFY=${NOTIFY:-/usr/local/sbin/notify-ha}
+
+mkdir -p "$STATE_DIR"
+for pkgbuild in "$LOCAL"/*/PKGBUILD; do
+	[[ -f $pkgbuild ]] || continue
+	pkg=$(basename "$(dirname "$pkgbuild")")
+	current=$(sed -n "s/^pkgver=['\"]\?\([^'\"]*\)['\"]\?$/\1/p" "$pkgbuild")
+	repo=$(sed -n "s#^url=['\"]\?https://github.com/\([^/'\"]*/[^/'\"]*\).*#\1#p" "$pkgbuild")
+	[[ -n $current && -n $repo ]] || { echo "$pkg: no pkgver or GitHub url, skipped"; continue; }
+
+	# releases/latest skips drafts and pre-releases; tags are vX.Y.Z or X.Y.Z
+	if ! release=$(curl -fsS -m 30 "https://api.github.com/repos/$repo/releases/latest"); then
+		echo "$pkg: cannot read the latest release of $repo" >&2
+		continue
+	fi
+	read -r latest url < <(python3 -c 'import json, sys
+r = json.load(sys.stdin)
+print(r["tag_name"].removeprefix("v"), r["html_url"])' <<<"$release")
+	if [[ -z $latest ]]; then
+		echo "$pkg: no release tag in the answer of $repo" >&2
+		continue
+	fi
+	newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+	if [[ $latest == "$current" || $newest != "$latest" ]]; then
+		echo "$pkg: $current is up to date ($repo latest: $latest)"
+		continue
+	fi
+	echo "$pkg: $repo released $latest, aur/local/$pkg is at $current"
+	[[ $(cat "$STATE_DIR/$pkg" 2>/dev/null) == "$latest" ]] && continue
+	NOTIFY_STATUS=info "$NOTIFY" "New $pkg release $latest" \
+		"aur/local/$pkg is at $current: bump pkgver and sha256sums in its PKGBUILD. $url" \
+		"aur-upstream-$pkg" && echo "$latest" >"$STATE_DIR/$pkg"
+done
+exit 0
