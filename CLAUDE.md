@@ -20,9 +20,9 @@ systemd/  build-image@.{service,timer}, build-bootc@.{service,timer}, build-aur.
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
           sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg)
 docs/     todo.md: pending improvements (boot time, storage, memory)
-bootc/    the recipes as bootc images (trial, no laptop uses them): Containerfile, build-recipe.sh,
-          build (chunkah + push to the registry), prune, overlay/; design and VM results in
-          bootc/README.md
+bootc/    the recipes as bootc images (trial, the T480): Containerfile, build-recipe.sh,
+          build (chunkah + push to the registry), prune, install (from the ISO), overlay/; design
+          and VM results in bootc/README.md
 keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also
           podman-auto-update) and the trigger socket (run as root; rerun after changing systemd/, serve/)
@@ -58,8 +58,9 @@ it in sync when changing behaviour.
 - `image/build [--rebuild-builder] <recipe>` builds the `arkdep-builder` podman image (when missing
   or older than 7 days; arkdep from `arkanelinux/pkgbuild`) and runs `arkdep-build.sh` inside it,
   writing to `/mnt/repo/<recipe>`.
-- Scheduled builds: `build-image@<recipe>.timer` for p14s and t480 (Sunday 08:00 Europe/Madrid,
-  `Persistent=true`). Builds run one at a time (`flock /run/build-image.lock`). After a successful
+- Scheduled builds: `build-image@<recipe>.timer` for the recipes in `ARKDEP_RECIPES` of `install`
+  (default p14s; the T480 runs bootc while both are compared) (Sunday 08:00 Europe/Madrid,
+  `Persistent=true`). The other recipes build by hand (`systemctl start`, status page). Builds run one at a time (`flock /run/build-image.lock`). After a successful
   build, `prune <recipe>` thins out old images (keep the newest 4 plus the newest of each of the 3
   previous months; `prune --dry-run <recipe>` shows the plan) and `notify-image` sends "New image
   ..." with the package changes to Home Assistant. Logs: `journalctl -u build-image@<recipe>`.
@@ -153,6 +154,14 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `bootc/overlay/` holds files only bootc images need: the registry as insecure in
   `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
 - No image signing yet (cosign + `policy.json` on the clients), see `bootc/README.md`.
+- Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` and
+  a `systemctl preset` after the overlay COPY, which comes after `preset-all`) runs `bootc-update`:
+  `bootc upgrade` (stage only) and `/run/bootc-update/staged` (recipe, version, package list URL)
+  for the waybar indicator. The version is the `org.opencontainers.image.version` label set by
+  `bootc/build` (the date tag). `bootc-fetch-apply-updates.timer` stays disabled: it reboots by
+  itself and only runs on ostree boots (`/run/ostree-booted`).
+- `arkdep-update-status` (sway layer) serves both: arkdep when `/arkdep/config` exists, bootc
+  otherwise.
 - `build-recipe.sh` extracts overlays with `tar --no-same-owner --no-same-permissions
   --no-overwrite-dir` (what arkdep-build's `cp -r` does). Plain `tar -xp` kept the checkout's UID
   1000 and 775 modes, also on existing dirs (`/usr`, `/usr/lib`, `/etc/systemd`): sudo ignored

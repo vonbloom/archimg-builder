@@ -1,0 +1,11 @@
+[Unit]
+Description=Download and stage the newest bootc image (started on the next boot)
+Documentation=man:bootc-upgrade(8)
+
+[Service]
+Type=oneshot
+# Skipped, not failed, away from home: the registry is on the LAN (the build server)
+ExecCondition=/usr/bin/curl -sf --max-time 10 -o /dev/null http://192.168.2.50:5000/v2/
+ExecStart=/usr/bin/bootc-update
+Nice=19
+IOSchedulingClass=idle

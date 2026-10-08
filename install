@@ -2,14 +2,20 @@
 # Install the build units, the status page (generator and build trigger) and the web server, and
 # enable the timers
 # (run as root on the build server). Idempotent: run it again after changes to systemd/ or serve/.
-# Usage: install [recipe...]   (recipes to schedule, arkdep and bootc images, default: p14s t480)
+# Usage: [ARKDEP_RECIPES="p14s ..."] [BOOTC_RECIPES="t480 ..."] install
+# Weekly builds: the arkdep images of ARKDEP_RECIPES (default p14s) and the bootc images of
+# BOOTC_RECIPES (default t480), what each laptop runs. The timers of the other recipes are disabled:
+# every recipe's builds stay available by hand (systemctl start, or the status page).
 
 set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-RECIPES=("$@")
-[[ $# -eq 0 ]] && RECIPES=(p14s t480)
+read -ra arkdep_recipes <<<"${ARKDEP_RECIPES-p14s}"
+read -ra bootc_recipes <<<"${BOOTC_RECIPES-t480}"
+timers=()
+for recipe in "${arkdep_recipes[@]}"; do timers+=("build-image@$recipe.timer"); done
+for recipe in "${bootc_recipes[@]}"; do timers+=("build-bootc@$recipe.timer"); done
 
 ln -sf "$(pwd)"/systemd/build-{image@,bootc@,aur}.{service,timer} "$(pwd)"/systemd/build-iso.service \
 	"$(pwd)"/systemd/distro-status.{service,timer} "$(pwd)"/systemd/distro-trigger.{service,socket} \
@@ -24,9 +30,11 @@ install -m 644 serve/distro-trigger.rules /etc/polkit-1/rules.d/50-distro-trigge
 systemctl daemon-reload
 
 systemctl enable --now build-aur.timer
-for recipe in "${RECIPES[@]}"; do
-	systemctl enable --now "build-image@$recipe.timer" "build-bootc@$recipe.timer"
+for link in /etc/systemd/system/timers.target.wants/build-{image,bootc}@*.timer; do
+	timer=${link##*/}
+	[[ -L $link && " ${timers[*]} " != *" $timer "* ]] && systemctl disable --now "$timer"
 done
+((${#timers[@]})) && systemctl enable --now "${timers[@]}"
 systemctl enable --now distro-status.timer distro-trigger.socket podman-auto-update.timer
 systemctl try-restart distro-trigger.service  # new code of serve/build-trigger
 systemctl start distro-status.service  # first status before the web server serves the page

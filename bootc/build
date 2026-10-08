@@ -35,6 +35,7 @@ CHUNKAH_CONFIG_STR=$(podman inspect "$IMAGE")
 export CHUNKAH_CONFIG_STR
 loaded=$(podman run --rm --pull=always --mount=type=image,src="$IMAGE",target=/chunkah \
 	-e CHUNKAH_CONFIG_STR "$CHUNKAH" build --label ostree.bootable=1 --label containers.bootc=1 \
+	--label org.opencontainers.image.version="$TAG" \
 	--compressed --max-layers 128 | podman load -q)
 id=${loaded##*:}
 [[ -n $id ]] || { echo "chunkah produced no image: $loaded" >&2; exit 1; }

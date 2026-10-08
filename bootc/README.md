@@ -2,15 +2,17 @@
 
 Trial (since 2026-10-07) of [bootc](https://github.com/bootc-dev/bootc) as a replacement for
 arkdep: the same recipe (`image/arkdep-build.d/<recipe>`) built as a bootc container image, based
-on the Arch image of [bootcrew/mono](https://github.com/bootcrew/mono). Built weekly and pushed to
-the build server's registry by `build-bootc@<recipe>` (see the main README); no laptop uses it yet.
+on the Arch image of [bootcrew/mono](https://github.com/bootcrew/mono). Built and pushed to the
+build server's registry by `build-bootc@<recipe>` (see the main README). While arkdep and bootc are
+compared the T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` bootc
+image by hand); `install` sets the schedules.
 
 - `Containerfile`: CachyOS v3 repositories and `linux-cachyos` like the recipe; `bootc` from the
   `[aur]` repository (`aur/local/bootc`: pinned version, no SELinux); composefs backend.
 - `build-recipe.sh`: applies the arkdep recipe in arkdep-build's order (package lists, overlays,
   presets, locale-gen), without arkdep, `arkane-keyring` and `nss-altfiles`.
 - `overlay/`: files only bootc systems need (the registry, AppArmor's `@{HOMEDIRS}`, the masked
-  `systemd-boot-random-seed.service`).
+  `systemd-boot-random-seed.service`, `bootc-update.timer`: stages new images, see the main README).
 - `build`, `prune`: build, rechunk and push; retention in the registry.
 - `install`: installs an image from the installer ISO on existing partitions, keeping `/home` (see
   the main README).
@@ -73,8 +75,8 @@ These tests compiled bootc in the Containerfile (since replaced by the `[aur]` p
 - Image signing (cosign + `policy.json` on the clients) instead of the GPG-signed arkdep repository.
 - Machine-specific kernel arguments: `install` passes the `/home` mount, the swap partition and
   `resume=` with `--karg`; that they survive `bootc upgrade` is not tested yet, nor hibernation.
-- btrbk (`snapshot_dir /arkdep/snapshots`), the arkdep waybar module (`bootc status --json`),
-  `arkdep-diff`. Done: `notify-image` and the status page.
+- btrbk (`snapshot_dir /arkdep/snapshots`), `arkdep-diff`. Done: `notify-image`, the status page,
+  updates (`bootc-update.timer`) and the waybar indicator.
 - btrfs is "expected to work but not tested" upstream with the composefs backend; it worked here.
   No boot counting / automatic rollback (arkdep has none either).
 - No in-place migration from arkdep: `install` reinstalls the root partition and keeps a separate

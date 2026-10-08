@@ -1,0 +1,36 @@
+#!/usr/bin/bash
+# Stage the newest image of the booted tag (bootc upgrade: started on the next boot) and record it
+# in /run/bootc-update/staged for the waybar indicator (custom/arkdep, arkdep-update-status).
+# Run by bootc-update.timer; by hand: sudo bootc-update (with progress) or the indicator's click.
+
+set -euo pipefail
+
+REPO_URL=http://192.168.2.50  # the build server's /mnt/repo: package lists of the bootc images
+STATUS=/run/bootc-update/staged
+
+quiet=()
+[[ -t 1 ]] || quiet=(--quiet)
+bootc upgrade "${quiet[@]}"
+
+mkdir -p "${STATUS%/*}"
+bootc status --format json | python3 -c '
+import json, sys
+staged = (json.load(sys.stdin).get("status") or {}).get("staged")
+if staged:
+    image = staged["image"]
+    recipe = image["image"]["image"].rsplit("/", 1)[-1].split(":")[0]  # 192.168.2.50:5000/t480:latest
+    version = image.get("version") or ""  # org.opencontainers.image.version, the build date
+    print("recipe=" + recipe)
+    print("version=" + version)
+    if version:
+        print("pkgs=%s/bootc/%s/%s-%s.pkgs" % (sys.argv[1], recipe, recipe, version))
+' "$REPO_URL" >"$STATUS.new"
+if [[ -s $STATUS.new ]]; then
+	mv "$STATUS.new" "$STATUS"
+	echo "Staged: $(paste -sd' ' "$STATUS")"
+else
+	rm -f "$STATUS.new" "$STATUS"
+	echo "No update staged"
+fi
+# The indicator reads it again on SIGRTMIN+8 (waybar's "signal": 8)
+pkill -RTMIN+8 -x waybar || true

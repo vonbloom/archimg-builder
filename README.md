@@ -44,15 +44,19 @@ server"). Step by step: `docs/rebuild.md` in the homelab repo. To set up a serve
 
 ```sh
 git clone https://github.com/vonbloom/distro-builder.git ~/distro-builder
-sudo ~/distro-builder/install            # or: sudo ~/distro-builder/install p14s t480 ...
+sudo ~/distro-builder/install   # or: sudo ARKDEP_RECIPES="p14s t480" BOOTC_RECIPES= ~/distro-builder/install
 ```
 
 `install` links the units in `systemd/` into `/etc/systemd/system`, the quadlets
 `serve/distro-repo.container` and `serve/distro-registry.container` into `/etc/containers/systemd`,
 creates `/mnt/repo/registry` and `/mnt/repo/bootc`, installs the polkit rule of the build trigger,
-enables `build-aur.timer`, one `build-image@<recipe>.timer` and one `build-bootc@<recipe>.timer`
-per recipe (default `p14s t480`), `distro-status.timer`, `distro-trigger.socket` and
-`podman-auto-update.timer`, and (re)starts the web server and the registry. It is idempotent: run it again to schedule other recipes, or after
+enables `build-aur.timer`, the weekly `build-image@<recipe>.timer` of the recipes in
+`ARKDEP_RECIPES` (default `p14s`) and `build-bootc@<recipe>.timer` of those in `BOOTC_RECIPES`
+(default `t480`), `distro-status.timer`, `distro-trigger.socket` and `podman-auto-update.timer`,
+and (re)starts the web server and the registry. The defaults are what each laptop runs while arkdep
+and bootc are compared (P14s arkdep, T480 bootc); the other recipes' timers are disabled, and their
+builds stay available by hand (`systemctl start`, or the status page, which lists the arkdep and
+bootc builds of every recipe). It is idempotent: run it again to change the schedules, or after
 changing `systemd/` or `serve/`.
 
 Every build unit pulls the checkout (`git pull --ff-only`, as `admin`) before building, so a
@@ -256,8 +260,13 @@ the results of the first tests in a VM.
   for the notification.
 - `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`) and garbage-collects the
   registry. Both run under the same lock as the arkdep builds, one at a time.
-- Scheduled weekly by `build-bootc@<recipe>.timer`; run it now with
+- Scheduled weekly by `build-bootc@<recipe>.timer` for the recipes in `BOOTC_RECIPES` of
+  `install` (default `t480`); run it now, for any recipe, with
   `sudo systemctl start build-bootc@p14s` and follow it with `journalctl -fu build-bootc@p14s`.
+- On a bootc system `bootc-update.timer` (after boot and every 4 hours, skipped away from home)
+  downloads and stages the newest image of its tag; it starts on the next boot. The waybar
+  indicator (`arkdep-update-status`, same module as arkdep's) shows a staged image with its package
+  changes; a click (or `sudo bootc-update`) looks for a newer one now.
 - The registry (`serve/distro-registry.container`, `registry:2`, storage in `/mnt/repo/registry`)
   serves plain HTTP on port 5000; the images list it as insecure in
   `/etc/containers/registries.conf.d/50-distro-builder.conf`. A bootc system follows a recipe with

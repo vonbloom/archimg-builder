@@ -87,12 +87,23 @@ def unit_kind(unit):
     return "other", None
 
 
+def checkout_recipes():
+    """Device recipes of the checkout: the directories of image/arkdep-build.d with a name.sh"""
+    d = os.path.join(CHECKOUT, "image", "arkdep-build.d")
+    try:
+        return sorted(r for r in os.listdir(d) if os.path.isfile(os.path.join(d, r, "name.sh")))
+    except OSError:
+        return []
+
+
 def build_units():
-    """Build units with a timer (build-aur, build-image@ and build-bootc@<recipe>) plus build-iso (manual)."""
+    """The units with a build-* timer (build-aur and the scheduled images), the arkdep and bootc
+    units of every recipe (scheduled or manual, see ./install) and build-iso (manual)."""
     out = run(["systemctl", "list-units", "--all", "--plain", "--no-legend", "--type=timer", "build-*"])
-    timers = sorted(line.split()[0] for line in out.splitlines() if line.strip())
-    units = [t[: -len(".timer")] + ".service" for t in timers]
-    return units + ["build-iso.service"], {u: t for u, t in zip(units, timers)}
+    timers = {t[: -len(".timer")] + ".service": t for t in (line.split()[0] for line in out.splitlines() if line.strip())}
+    units = set(timers) | {"build-iso.service"}
+    units |= {f"build-{kind}@{r}.service" for r in checkout_recipes() for kind in ("image", "bootc")}
+    return sorted(units), timers
 
 
 def last_run_from_journal(unit):
@@ -153,6 +164,7 @@ def unit_status(unit, timer, now):
         "finished": finished,
         "duration": duration,
         "next": epoch(t.get("NextElapseUSecRealtime")),
+        "scheduled": timer is not None,
         "log": f"logs/{unit}.txt" if started else None,
     }
 

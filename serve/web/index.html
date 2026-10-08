@@ -168,7 +168,7 @@ function renderUnits() {
     h("dl", { class: "kv" },
       h("dt", {}, u.state === "running" ? "Començat" : "Última"), h("dd", { title: when(u.started) }, u.started ? `${ago(u.started)}` : "—"),
       h("dt", {}, "Durada"), h("dd", {}, dur(u.duration)),
-      h("dt", {}, "Propera"), h("dd", { title: when(u.next) }, u.next ? ago(u.next) : u.kind === "iso" ? "manual" : "—"),
+      h("dt", {}, "Propera"), h("dd", { title: when(u.next) }, u.next ? ago(u.next) : u.scheduled ? "—" : "manual"),
       u.state === "failed" ? [h("dt", {}, "Resultat"), h("dd", {}, u.result)] : null),
     h("div", { class: "actions" },
       u.log ? h("button", { onclick: () => showLog(u.unit) }, "Registre") : null,

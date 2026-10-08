@@ -17,6 +17,7 @@ import sys
 from urllib.parse import unquote
 
 API = re.compile(r"/api/build/([A-Za-z0-9@._-]+)")
+CHECKOUT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 def systemctl(*args):
@@ -25,10 +26,14 @@ def systemctl(*args):
 
 
 def build_units():
-    """Same units as the status page (serve/status-gen): those with a build-* timer, plus build-iso."""
+    """Same units as the status page (serve/status-gen): those with a build-* timer, the arkdep and
+    bootc units of every recipe of the checkout (scheduled or not) and build-iso."""
     out = systemctl("list-units", "--all", "--plain", "--no-legend", "--type=timer", "build-*").stdout
     timers = (line.split()[0] for line in out.splitlines() if line.strip())
-    return {t[: -len(".timer")] + ".service" for t in timers} | {"build-iso.service"}
+    d = os.path.join(CHECKOUT, "image", "arkdep-build.d")
+    recipes = [r for r in os.listdir(d) if os.path.isfile(os.path.join(d, r, "name.sh"))]
+    return ({t[: -len(".timer")] + ".service" for t in timers} | {"build-iso.service"} |
+            {f"build-{kind}@{r}.service" for r in recipes for kind in ("image", "bootc")})
 
 
 class Handler(http.server.BaseHTTPRequestHandler):

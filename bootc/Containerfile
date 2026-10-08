@@ -45,8 +45,10 @@ RUN --mount=type=bind,source=.,target=/ctx bash /ctx/bootc/build-recipe.sh "$REC
 COPY bootc/overlay/ /
 
 # bootc's units need no preset ("disable *" in 81-custom.preset is fine): its generator and other
-# units pull them in. Only bootc-fetch-apply-updates.timer has an [Install] section, and stays
-# disabled: updates by hand, as with arkdep.
+# units pull them in. bootc-fetch-apply-updates.timer stays disabled: it reboots on its own, and it
+# only runs on ostree boots (/run/ostree-booted), not composefs ones. bootc-update.timer (overlay,
+# 80-bootc.preset) stages the newest image instead; the reboot is up to the user.
+RUN systemctl preset bootc-update.timer
 
 # Kernel options of the boot template, minus what bootc sets (root, rootflags, resume)
 RUN --mount=type=bind,source=iso/airootfs/root/systemd-boot.template,target=/template \

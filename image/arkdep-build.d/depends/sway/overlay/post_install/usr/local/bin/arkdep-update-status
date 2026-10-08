@@ -6,6 +6,9 @@
 # The module is hidden when the system is up to date or the repository is unreachable (away from
 # home). Waybar refreshes it every hour and on SIGRTMIN+8, sent by refresh: after any deploy
 # (arkdep-update-status.path watches the boot entries) or by hand.
+# On a bootc system (no /arkdep, a trial: bootc/README.md) bootc-update.timer stages new images:
+# the module shows the staged one (/run/bootc-update/staged, it sends the signal itself), and the
+# click looks for a newer one now.
 
 set -uo pipefail
 
@@ -15,14 +18,40 @@ if [[ ${1:-} == refresh ]]; then
 	exec pkill -RTMIN+$SIGNAL waybar
 fi
 
+bootc=0
+[[ -f /arkdep/config ]] || bootc=1
+
 if [[ ${1:-} == deploy ]]; then
-	exec foot --title "arkdep deploy" sh -c \
-		"sudo arkdep deploy; printf '\nPress Enter to close'; read -r _"
+	cmd="sudo arkdep deploy"
+	((bootc)) && cmd="sudo bootc-update"
+	exec foot --title "${cmd#sudo }" sh -c "$cmd; printf '\nPress Enter to close'; read -r _"
 fi
 
 json() {
 	printf '{"text": "%s", "class": "%s", "tooltip": "%s"}\n' "$1" "$2" "$3"
 }
+
+# Packages of the list at URL $1 that are new or have another version than installed
+changed_packages() {
+	curl -sf --max-time 10 "$1" | awk '
+		NR == FNR { installed[$1] = $2; next }
+		!($1 in installed) || installed[$1] != $2 { n++ }
+		END { print n + 0 }' <(pacman -Q) -
+}
+
+if ((bootc)); then
+	recipe='' version='' pkgs=''
+	eval "$(grep -E '^(recipe|version|pkgs)=[A-Za-z0-9:/._-]*$' /run/bootc-update/staged 2>/dev/null)"
+	if [[ -z $recipe ]]; then
+		json "" "" ""
+	elif [[ -n $pkgs ]]; then
+		changes=$(changed_packages "$pkgs")
+		json "󰜉 $changes" reboot "$recipe $version is staged ($changes packages new or updated): reboot to start it.\nClick to look for a newer image."
+	else
+		json "󰜉" reboot "A new $recipe image is staged: reboot to start it.\nClick to look for a newer image."
+	fi
+	exit 0
+fi
 
 repo_url='' repo_default_image=''
 eval "$(grep -E '^(repo_url|repo_default_image)=' /arkdep/config)"
@@ -35,9 +64,6 @@ if [[ -z $latest || ! $latest > $running ]]; then
 elif [[ -d /arkdep/deployments/$latest ]]; then
 	json "󰜉" reboot "$latest is deployed: reboot to start it."
 else
-	changes=$(curl -sf --max-time 10 "$repo_url/$repo_default_image/$latest.pkgs" | awk '
-		NR == FNR { installed[$1] = $2; next }
-		!($1 in installed) || installed[$1] != $2 { n++ }
-		END { print n + 0 }' <(pacman -Q) -)
+	changes=$(changed_packages "$repo_url/$repo_default_image/$latest.pkgs")
 	json "󰏔 $changes" available "New image $latest (running $running), $changes packages new or updated.\nClick to deploy it."
 fi

@@ -1,0 +1,13 @@
+[Unit]
+Description=Stage the newest bootc image after boot and every 4 hours
+
+[Timer]
+# Images are built weekly or by hand: a new one is staged within hours, and the reboot that starts
+# it is up to the user (waybar indicator). Without a new image bootc only fetches the manifest.
+# An elapse missed during suspend fires on resume; one at boot would usually find no network yet
+OnBootSec=5min
+OnCalendar=00/4:00
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target
