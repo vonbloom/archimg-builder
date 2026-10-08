@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Usage: prune [--dry-run] <recipe>
 # Keep the newest KEEP (default 4, a month of weekly builds) dated tags of <recipe> in the registry
-# (latest is the newest one), delete the older ones and their package lists, then let the registry
-# delete the blobs no image uses any more and restart it. Run under /run/build-image.lock: garbage
-# collection must not race with a push.
+# (latest is the newest one), delete the older ones and their package lists, and the signatures of
+# images no tag names any more, then let the registry delete the blobs no image uses any more and
+# restart it. Run under /run/build-image.lock: garbage collection must not race with a push.
 
 set -euo pipefail
 
@@ -21,29 +21,57 @@ accept=(-H 'Accept: application/vnd.oci.image.manifest.v1+json'
 	-H 'Accept: application/vnd.oci.image.index.v1+json'
 	-H 'Accept: application/vnd.docker.distribution.manifest.v2+json')
 
-mapfile -t tags < <(curl -fsS "$api/tags/list" |
-	python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin).get("tags") or []))' |
-	grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort -r)
+digest_of() {
+	{ curl -fsSI "${accept[@]}" "$api/manifests/$1" 2>/dev/null || true; } |
+		tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }'
+}
+
+mapfile -t all < <(curl -fsS "$api/tags/list" |
+	python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin).get("tags") or []))')
+mapfile -t dated < <(printf '%s\n' "${all[@]}" | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort -r)
+
+declare -A old=()
+for i in "${!dated[@]}"; do
+	if ((i < KEEP)); then
+		echo "keep   $RECIPE:${dated[$i]}"
+	else
+		old[${dated[$i]}]=1
+	fi
+done
+
+# Images still tagged once the old dated tags are gone: latest and the kept dated tags
+declare -A tagged=()
+for tag in "${all[@]}"; do
+	[[ -z $tag || $tag == *.sig || -n ${old[$tag]:-} ]] && continue
+	digest=$(digest_of "$tag")
+	[[ -n $digest ]] || { echo "no digest for $RECIPE:$tag" >&2; exit 1; }
+	tagged[$digest]=1
+done
 
 deleted=0
-for i in "${!tags[@]}"; do
-	tag=${tags[$i]}
-	if ((i < KEEP)); then
-		echo "keep   $RECIPE:$tag"
-		continue
-	fi
+for tag in "${dated[@]}"; do
+	[[ -n ${old[$tag]:-} ]] || continue
 	echo "delete $RECIPE:$tag"
 	((DRY_RUN)) && continue
-	digest=$(curl -fsSI "${accept[@]}" "$api/manifests/$tag" |
-		tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')
+	digest=$(digest_of "$tag")
 	[[ -n $digest ]] || { echo "no digest for $RECIPE:$tag" >&2; exit 1; }
-	curl -fsS -X DELETE "$api/manifests/$digest"
-	# Its sigstore signature, a tag of its own (bootc/build)
-	# (none for the images pushed before 2026-10-08)
-	sig=$({ curl -fsSI "${accept[@]}" "$api/manifests/${digest/:/-}.sig" 2>/dev/null || true; } |
-		tr -d '\r' | awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')
-	[[ -n $sig ]] && curl -fsS -X DELETE "$api/manifests/$sig" && echo "delete $RECIPE:${digest/:/-}.sig"
+	# Deleting a manifest drops every tag that names it
+	[[ -z ${tagged[$digest]:-} ]] && curl -fsS -X DELETE "$api/manifests/$digest"
 	rm -f "$PKGS_DIR/$RECIPE-$tag.pkgs"
+	deleted=$((deleted + 1))
+done
+
+# sigstore signatures (sha256-<digest>.sig, tags of their own, bootc/build) of images no tag names:
+# those of the old dated tags, and those of images replaced by a second build of the same day (the
+# dated tag and latest moved to the new image; the old one, untagged, goes in the garbage
+# collection below)
+for tag in "${all[@]}"; do
+	[[ $tag =~ ^sha256-([0-9a-f]{64})\.sig$ ]] || continue
+	[[ -n ${tagged[sha256:${BASH_REMATCH[1]}]:-} ]] && continue
+	echo "delete $RECIPE:$tag (signature of an untagged image)"
+	((DRY_RUN)) && continue
+	sig=$(digest_of "$tag")
+	[[ -n $sig ]] && curl -fsS -X DELETE "$api/manifests/$sig"
 	deleted=$((deleted + 1))
 done
 

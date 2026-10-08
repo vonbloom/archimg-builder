@@ -28,8 +28,9 @@ T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` boot
   of `192.168.2.50:5000` (`overlay/etc/containers/policy.json`, `registries.d/50-distro-builder.yaml`,
   public key `keys/distro-builder-sigstore.pub` copied to `/etc/pki/containers/distro-builder.pub`).
   The status page marks each image "signada" or "sense signar".
-- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`), with their signatures, and
-  garbage-collects the registry. Both run under the same lock as the arkdep builds, one at a time.
+- `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`), with their signatures, deletes
+  the signatures of images no tag names any more (a second build of the same day replaces the
+  image of that date), and garbage-collects the registry (`--dry-run` shows what it would do). Both run under the same lock as the arkdep builds, one at a time.
 - Scheduled weekly by `build-bootc@<recipe>.timer` for the recipes in `BOOTC_RECIPES` of
   `install` (default `t480`); run it now, for any recipe, with
   `sudo systemctl start build-bootc@p14s` and follow it with `journalctl -fu build-bootc@p14s`.

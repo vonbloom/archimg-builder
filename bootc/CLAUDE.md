@@ -39,8 +39,12 @@
   `install`, and `bootc/build` mounts `/etc/containers/registries.d` into the skopeo container. The clients'
   `policy.json` keeps Arch's default (accept anything) for every other registry, so distrobox and dev
   container images are unaffected. composefs bootc pulls through skopeo's image proxy with the default
-  config, which applies `/etc/containers/policy.json` (`bootc_composefs/repo.rs`). `prune` deletes the
-  `sha256-<digest>.sig` tag with its image. Check a policy by hand with skopeo in a container:
+  config, which applies `/etc/containers/policy.json` (`bootc_composefs/repo.rs`). `prune` deletes every
+  `sha256-<digest>.sig` tag whose digest no tag names any more: those of the deleted dated tags,
+  and those of images replaced by a second build of the same day (the dated tag and `latest` move
+  to the new image; until 2026-10-09 the old one stayed, untagged, with its signature, ~1 GiB
+  each, because the garbage collection only ran when a dated tag was deleted). Deleting such a
+  signature triggers the collection, which removes the untagged image. `prune --dry-run` lists it all. Check a policy by hand with skopeo in a container:
   `skopeo copy --policy P --registries.d D --src-tls-verify=false docker://192.168.2.50:5000/t480:latest dir:/tmp/x`
   (an unsigned image: "A signature was required, but no signature exists").
 - Updates on bootc systems: `bootc-update.timer` (`bootc/overlay`, enabled by `80-bootc.preset` in
