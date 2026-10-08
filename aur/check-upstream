@@ -3,7 +3,7 @@
 # Compare each own PKGBUILD (aur/local/<pkg>) with the latest release of its upstream project on
 # GitHub (taken from the PKGBUILD's url=) and report a newer one to Home Assistant, once per
 # version. Their versions only change by hand (aur-build.sh skips a version already in the
-# repository): this is the reminder to bump pkgver and sha256sums. Not the AUR package: it may lag
+# repository): this is the reminder to run aur/bump-local <pkg>. Not the AUR package: it may lag
 # behind or be broken (bootc, see the PKGBUILD's header).
 # Run by build-aur.service after the build; a failed check never fails the unit.
 # Test run: NOTIFY=echo STATE_DIR=/some/tmp/dir aur/check-upstream
@@ -42,7 +42,7 @@ print(r["tag_name"].removeprefix("v"), r["html_url"])' <<<"$release")
 	echo "$pkg: $repo released $latest, aur/local/$pkg is at $current"
 	[[ $(cat "$STATE_DIR/$pkg" 2>/dev/null) == "$latest" ]] && continue
 	NOTIFY_STATUS=info "$NOTIFY" "New $pkg release $latest" \
-		"aur/local/$pkg is at $current: bump pkgver and sha256sums in its PKGBUILD. $url" \
+		"aur/local/$pkg is at $current: run aur/bump-local $pkg, review, commit and push. $url" \
 		"aur-upstream-$pkg" && echo "$latest" >"$STATE_DIR/$pkg"
 done
 exit 0

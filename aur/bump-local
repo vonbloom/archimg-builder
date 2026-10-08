@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Usage: bump-local <pkg> [version]
+# Move an own PKGBUILD (aur/local/<pkg>) to the latest GitHub release of its url= (or to the given
+# version): set pkgver, reset pkgrel to 1 and set sha256sums to the digest GitHub publishes for the
+# release file named like the PKGBUILD's source= with the new version (downloaded and hashed when
+# GitHub has no digest). It only edits the PKGBUILD: review the diff, commit, push and start
+# build-aur. aur/check-upstream sends the reminder.
+
+set -euo pipefail
+
+pkg=${1:?Usage: bump-local <pkg> [version]}
+wanted=${2:-}
+pkgbuild=$(dirname "$(readlink -f "$0")")/local/$pkg/PKGBUILD
+[[ -f $pkgbuild ]] || { echo "No $pkgbuild" >&2; exit 1; }
+
+value() { sed -n "s/^$1=['\"]\?\([^'\"]*\)['\"]\?$/\1/p" "$pkgbuild"; }
+current=$(value pkgver)
+repo=$(sed -n "s#^url=['\"]\?https://github.com/\([^/'\"]*/[^/'\"]*\).*#\1#p" "$pkgbuild")
+[[ -n $current && -n $repo ]] || { echo "$pkg: no pkgver or GitHub url in the PKGBUILD" >&2; exit 1; }
+# One source file, written on one line (sha256sums must stay aligned with it)
+mapfile -t sources < <(sed -n 's/^source=(\(.*\))$/\1/p' "$pkgbuild" | tr ' ' '\n' | grep .)
+((${#sources[@]} == 1)) || { echo "$pkg: expected one source on a single source=() line" >&2; exit 1; }
+grep -q "^sha256sums=(.*)$" "$pkgbuild" || { echo "$pkg: sha256sums=() is not on one line" >&2; exit 1; }
+
+api=https://api.github.com/repos/$repo/releases
+if [[ -n $wanted ]]; then
+	release=$(curl -fsS "$api/tags/v$wanted" || curl -fsS "$api/tags/$wanted")
+else
+	release=$(curl -fsS "$api/latest")
+fi
+new=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"].removeprefix("v"))' <<<"$release")
+
+if [[ $new == "$current" ]]; then
+	echo "$pkg is already at $new"
+	exit 0
+fi
+if [[ $(printf '%s\n%s\n' "$current" "$new" | sort -V | tail -1) != "$new" ]]; then
+	echo "$pkg: $new is older than the PKGBUILD's $current" >&2
+	exit 1
+fi
+
+# The release file of the new version: source=("...$pkgver.tar.zstd") with the variables expanded
+source=${sources[0]//[\'\"]/}
+source=${source//\$\{pkgver\}/$new}
+source=${source//\$pkgver/$new}
+source=${source//\$\{pkgname\}/$pkg}
+source=${source//\$pkgname/$pkg}
+file=${source##*/}
+read -r digest url < <(python3 -c 'import json, sys
+r = json.load(sys.stdin)
+for a in r["assets"]:
+    if a["name"] == sys.argv[1]:
+        print(a.get("digest") or "-", a["browser_download_url"])' "$file" <<<"$release")
+[[ -n ${url:-} ]] || { echo "$pkg: release $new has no file $file" >&2; exit 1; }
+if [[ $digest == sha256:* ]]; then
+	sum=${digest#sha256:}
+	echo "$file: sha256 from GitHub's release metadata"
+else
+	echo "$file: no digest from GitHub, downloading it"
+	sum=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)
+fi
+
+sed -i -e "s/^pkgver=.*/pkgver=$new/" -e "s/^pkgrel=.*/pkgrel=1/" \
+	-e "s/^sha256sums=(.*)$/sha256sums=('$sum')/" "$pkgbuild"
+git -C "$(dirname "$pkgbuild")" --no-pager diff -- PKGBUILD
+cat <<EOF
+
+$pkg: $current -> $new. Next: commit and push, then start build-aur (status page or
+sudo systemctl start build-aur); a version that fails to build leaves $current in the repository.
+EOF

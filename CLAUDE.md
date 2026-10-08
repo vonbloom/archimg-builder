@@ -125,7 +125,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - `aur/check-upstream` (`ExecStartPost=-` of `build-aur.service`) compares each `local/<pkg>`
   `pkgver` with the latest GitHub release of its `url=` and sends a Home Assistant notification
   once per new version (state in `/var/lib/distro-builder/upstream/<pkg>`). Upstream, not the AUR
-  package: the AUR `bootc` is bumped by a bot and ignores its comments.
+  package: the AUR `bootc` is bumped by a bot and ignores its comments. `aur/bump-local <pkg>
+  [version]` edits the PKGBUILD (pkgver, pkgrel=1, sha256sums from the release asset `digest` of
+  the GitHub API, or a download); it needs a single `source=()` and `sha256sums=()` line each.
 - Packages no longer listed nor needed as AUR dependencies (`aur depends`) are `repo-remove`d and
   their files deleted; `paccache -rk2` keeps the last two versions of each package.
 - `makepkg.conf` (`/etc/makepkg.conf.d/`) disables `-debug` packages.

@@ -230,6 +230,9 @@ Prebuilt AUR packages for the `userland` distrobox, published as the pacman repo
   leaves the previous one in place. After each run `aur/check-upstream` compares them with the
   latest GitHub release of their `url=` and sends a Home Assistant notification, once per version,
   when a newer one is out (`NOTIFY=echo STATE_DIR=/tmp/x aur/check-upstream` to try it).
+  `aur/bump-local <pkg> [version]` then moves the PKGBUILD to that release (default: the latest):
+  `pkgver`, `pkgrel=1` and `sha256sums` from the digest GitHub publishes for the source file
+  (downloaded and hashed when there is none); review the diff, commit, push and start `build-aur`.
 - Scheduled daily by `build-aur.timer`; run it now with `sudo systemctl start build-aur` and
   follow it with `journalctl -fu build-aur`.
 - PKGBUILD changes are not reviewed: only list packages you trust.

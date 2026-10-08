@@ -3,7 +3,8 @@
 # repositories), and with skopeo in depends. Reported to the AUR package:
 # https://aur.archlinux.org/packages/bootc#comment-1087447
 # The version only changes here: bump pkgver (and sha256sums) after checking that it builds.
-# aur/check-upstream (daily, after build-aur) reports new releases of bootc-dev/bootc.
+# aur/check-upstream (daily, after build-aur) reports new releases of bootc-dev/bootc;
+# aur/bump-local bootc sets pkgver and sha256sums for the latest one.
 
 pkgname=bootc
 pkgver=1.17.1
