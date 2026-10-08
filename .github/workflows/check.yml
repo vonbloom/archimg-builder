@@ -8,8 +8,10 @@ permissions:
   contents: read
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves between releases (to 26.04 from 2026-10-19). ci/check only needs
+    # git, python3 and podman or docker, so a newer release is a one-line change
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7  # v4 runs on the deprecated Node.js 20
       - name: Static checks
         run: ci/check
