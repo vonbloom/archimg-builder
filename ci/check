@@ -2,8 +2,9 @@
 # Usage: ci/check
 # Static checks of the repository, run by GitHub Actions on every push (.github/workflows/check.yml)
 # and by hand before pushing. The builds themselves stay on the build server (LAN, signing key).
-# - shellcheck of every shell script (shebang), warnings and errors; shellcheck runs from its
-#   container image (podman or docker), pinned so that every machine reports the same
+# - shellcheck of every shell script (shebang, or a "# shellcheck shell=" first line for sourced
+#   libraries), warnings and errors; shellcheck runs from its container image (podman or docker),
+#   pinned so that every machine reports the same
 # - Python syntax of the serve/ scripts (without writing bytecode)
 # - no stray files tracked (Python bytecode, editor swap files)
 # - commands are executable: files in bin/ and sbin/, and extensionless scripts of the tools
@@ -25,7 +26,8 @@ shebang() { [[ -f $1 && ! -L $1 ]] && head -n1 "$1" 2>/dev/null | grep -qE "$2";
 echo "== shellcheck"
 shell=()
 for f in "${files[@]}"; do
-	shebang "$f" '^#!.*[/ ](ba)?sh( |$)' && shell+=("$f")
+	# Sourced libraries have no shebang: their first line names the shell for shellcheck
+	shebang "$f" '^#!.*[/ ](ba)?sh( |$)|^# shellcheck shell=(ba)?sh$' && shell+=("$f")
 done
 if command -v podman >/dev/null; then
 	runner=(podman run --rm -q -v "$PWD:/mnt:ro,Z" -w /mnt "$SHELLCHECK_IMAGE")
