@@ -212,8 +212,10 @@ Still to do, in order:
       checkout: 126 s over Wi-Fi, then `--playground`). The dotfiles' `distrobox` package went the
       same day (unstowed on both laptops first: `default.ini`, the pre-init hook, the copy of the
       `[aur]` key, the D-Bus services).
-- [ ] **waybar notice**: a user timer pulls the new image (staged) and the indicator shows it,
-      like `arkdep-update-status` does for the system.
+- [x] **waybar notice** (2026-10-09): `custom/userland` (`userland-update-status`, sway layer)
+      compares the registry's `userland:latest` digest with the image the box runs every hour (no
+      staged pull: `userland-update` pulls on the click, 40 s on the LAN) and shows the package
+      changes from the two images' lists. To check once the laptops run an image with it.
 
 ## bootc: sealed images (if bootc stays)
 

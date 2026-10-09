@@ -11,6 +11,7 @@
         "include": ["/etc/xdg/waybar/bar.jsonc"],
         "modules-right": [
             "custom/arkdep",
+            "custom/userland",
             "mpd",
             "pulseaudio",
             "network",

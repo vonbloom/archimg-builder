@@ -73,3 +73,9 @@ is available (click it to deploy in a terminal), 󰜉 when the newest image is d
 booted yet, and nothing when the system is up to date or the server is unreachable. It refreshes
 by itself after any deploy (`arkdep-update-status.path` watches the boot entries); to check right
 away after a build, run `arkdep-update-status refresh`.
+
+Next to it, `custom/userland` (script `userland-update-status`) does the same for the userland
+distrobox: every hour it compares the digest of `userland:latest` in the registry with the image
+the box runs (no pull), shows 󰆧 and the number of new or updated packages when they differ, and
+nothing otherwise or away from home. A click runs `userland-update` in a terminal, which asks
+before replacing the running box; `userland-update-status refresh` checks again now.

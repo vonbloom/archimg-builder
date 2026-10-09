@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Waybar module custom/userland: is there a newer userland image in the registry than the one the
+# userland box runs?
+# Usage: userland-update-status          print the module state as waybar JSON ("exec")
+#        userland-update-status update   run userland-update in a terminal ("on-click")
+#        userland-update-status refresh  make waybar check again now
+# Hidden when userland runs the newest image, has no box, or the registry is unreachable (away
+# from home). Only the manifest's digest is asked (no pull): userland-update pulls on the click,
+# and asks before replacing the box (its apps close). Waybar refreshes it every hour and on
+# SIGRTMIN+9, sent after the update started from the click.
+
+set -uo pipefail
+
+SIGNAL=9
+REGISTRY=http://192.168.2.50:5000/v2/userland
+PKGS=http://192.168.2.50/userland
+ACCEPT='Accept: application/vnd.oci.image.manifest.v1+json'
+
+case ${1:-} in
+	refresh)
+		exec pkill -RTMIN+$SIGNAL waybar
+		;;
+	update)
+		exec foot --title userland-update sh -c \
+			"userland-update; pkill -RTMIN+$SIGNAL waybar; printf '\nPress Enter to close'; read -r _"
+		;;
+esac
+
+json() {
+	printf '{"text": "%s", "class": "%s", "tooltip": "%s"}\n' "$1" "$2" "$3"
+}
+
+# The box was created from repository@digest (userland-update pins it)
+current=$(podman container inspect --format '{{.ImageName}}' userland 2>/dev/null) || { json "" "" ""; exit 0; }
+latest=$(curl -sfI --max-time 5 -H "$ACCEPT" "$REGISTRY/manifests/latest" | tr -d '\r' |
+	awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }')
+if [[ -z $latest || $current == *"@$latest" ]]; then
+	json "" "" ""
+	exit 0
+fi
+
+# The version (build date) is an annotation of the manifest and a label of the local image
+latest_version=$(curl -sf --max-time 5 -H "$ACCEPT" "$REGISTRY/manifests/$latest" |
+	grep -o '"org.opencontainers.image.version": *"[^"]*"' | cut -d'"' -f4)
+current_version=$(podman image inspect --format '{{index .Labels "org.opencontainers.image.version"}}' "$current" 2>/dev/null)
+
+# Packages new or changed between the two images' lists (gone with the image after four weeks; a
+# second build of the same day replaces its list, so no count then)
+changes=''
+if [[ -n $latest_version && -n $current_version && $latest_version != "$current_version" ]]; then
+	old=$(curl -sf --max-time 5 "$PKGS/userland-$current_version.pkgs") &&
+		new=$(curl -sf --max-time 5 "$PKGS/userland-$latest_version.pkgs") &&
+		changes=$(awk 'NR == FNR { old[$1] = $2; next } !($1 in old) || old[$1] != $2 { n++ } END { print n + 0 }' \
+			<(printf '%s\n' "$old") <(printf '%s\n' "$new"))
+fi
+
+tooltip="New userland image ${latest_version:-?} (userland runs ${current_version:-another one})"
+[[ -n $changes ]] && tooltip+=", $changes packages new or updated"
+json "󰆧${changes:+ $changes}" available "$tooltip.\nClick to update it (the apps opened from userland close)."

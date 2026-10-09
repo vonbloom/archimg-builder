@@ -18,6 +18,7 @@
     ],
     "modules-right": [
         "custom/arkdep",
+        "custom/userland",
         "mpd",
         // "idle_inhibitor",
         "pulseaudio",
@@ -215,6 +216,14 @@
         "interval": 3600,
         "signal": 8,
         "on-click": "arkdep-update-status deploy"
+    },
+    "custom/userland": {
+        // Newer userland image in the registry (hidden when up to date or away from home)
+        "exec": "userland-update-status",
+        "return-type": "json",
+        "interval": 3600,
+        "signal": 9,
+        "on-click": "userland-update-status update"
     },
     "custom/power": {
         "format": "⏻ ",

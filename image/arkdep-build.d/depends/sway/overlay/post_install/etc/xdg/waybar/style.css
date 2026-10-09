@@ -89,6 +89,7 @@ button:hover {
 #wireplumber,
 #custom-media,
 #custom-arkdep,
+#custom-userland,
 #tray,
 #mode,
 #idle_inhibitor,
@@ -339,4 +340,8 @@ label:focus {
 
 #custom-arkdep.reboot {
     background-color: #cf5700;
+}
+
+#custom-userland.available {
+    background-color: #00796b;
 }

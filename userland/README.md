@@ -53,5 +53,9 @@ installs again the packages added in it (explicitly installed, not in the image)
 -Syu`; files changed in it by hand go. `--playground --dry-run` lists those packages: the
 candidates for `packages.list`.
 
+The waybar module `custom/userland` (`userland-update-status`, sway layer) shows 󰆧 and the number
+of new or updated packages when the registry has a newer image than userland runs; a click runs
+`userland-update` in a terminal.
+
 Both laptops' boxes come from the image since 2026-10-09 (before, the dotfiles' `default.ini`
-assembled them from `archlinux:latest`). Pending (`docs/todo.md`): the waybar notice.
+assembled them from `archlinux:latest`).
