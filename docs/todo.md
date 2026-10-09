@@ -246,6 +246,14 @@ Upstream issues with a local workaround, to drop when they are fixed in a bootc 
       with its deployment. Also reported there: the conflict check before writing never matches,
       and `arkdep cleanup` never removes the boot entry and kernel of an untracked deployment
       (`[[ -f ...*glob* ]]`); `remove_deployment` does.
+      - Fixed upstream in ef6738e (2026-10-09, not released: `[arkane]` still has 2026.08.17), but
+        the fix computes the time as `$($(date +%Y%m%d-%H%M%S))`: bash runs the time as a command
+        ("command not found") and the variable is empty, so every entry would be named
+        `-<image>+3.conf`. Reported:
+        https://github.com/arkanelinux/arkdep/issues/53#issuecomment-6077770244. Before the P14s
+        image takes the next arkdep release, check that line (`grep systemd_boot_entry_timestamp
+        /usr/bin/arkdep`); after the first deploy with it, the entry's name on the ESP. The other
+        two points are still open.
 
 ## Storage
 

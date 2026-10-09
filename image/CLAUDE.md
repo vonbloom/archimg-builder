@@ -69,7 +69,9 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Split boot entries** (arkdep 2026.08.17, arkanelinux/arkdep#53): a deploy can write the
   entry's title and the rest into two files a second apart. The menu then shows the deployment
   by its file name plus a title-only entry; the deployment boots fine. Fix by hand on the ESP
-  (`sudo sed -i '1i title ...' <entry>` and remove the title-only file) if it bothers.
+  (`sudo sed -i '1i title ...' <entry>` and remove the title-only file) if it bothers. Fixed after
+  2026.08.17 with a regression of its own (an empty time in the file name): see `docs/todo.md`,
+  "arkdep upstream", before taking a new arkdep release.
 - **dracut modules left out** (`depends/generic/.../dracut.conf.d/20-omit-unused.conf`, both the
   arkdep and the bootc images): no LUKS (`crypt`, `systemd-cryptsetup`, `dm`, `fido2`, `pkcs11`),
   RAID, LVM, TPM measurements, `hwdb` or fsck in the initramfs. Encrypting a disk or using RAID,
