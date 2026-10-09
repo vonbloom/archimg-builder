@@ -4,8 +4,9 @@
   package list to `/mnt/repo/bootc/<recipe>/<recipe>-<date>.pkgs`, chunkah rechunk into an OCI
   directory layout in `/var/tmp` (`-o oci:`, gzip layers), pushed as it is by skopeo
   (`copy --preserve-digests`) to `192.168.2.50:5000/<recipe>:<date>` (signed) and `:latest`, then
-  remove the local image), then `bootc/prune` and `image/notify-image` with
-  `REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc`. Weekly, Sunday 13:00 Europe/Madrid.
+  remove the local image; that part is `lib/push-image.sh`, shared with the userland image), then
+  `bootc/prune` and `image/notify-image` with `REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc`.
+  Weekly, Sunday 13:00 Europe/Madrid.
 - Build and prune run under `/run/build-image.lock` with the other builds: memory, and the
   registry's `garbage-collect` must never run during a push (it deletes blobs of unfinished
   uploads). prune deletes manifests through the API (`REGISTRY_STORAGE_DELETE_ENABLED`), runs
@@ -21,9 +22,10 @@
   checkout (`git ls-files -z | tar --null -T - -c...`, never edit `/home/admin/distro-builder`:
   its `git pull --ff-only` would fail), then delete the test manifests through the registry API.
 - chunkah (`quay.io/coreos/chunkah`) and skopeo (`quay.io/skopeo/stable`) run as containers pinned
-  to a version: chunkah's gzip output is byte-identical for identical input (two runs, 2026-10-09),
-  so unchanged layers keep their digests and clients skip them; a new chunkah could change every
-  digest and make every client download the whole image (~1 GiB). Bump the pin on purpose.
+  to a version (`lib/push-image.sh`): chunkah's gzip output is byte-identical for identical input
+  (two runs, 2026-10-09), so unchanged layers keep their digests and clients skip them; a new
+  chunkah could change every digest and make every client download the whole image (~1 GiB). Bump
+  the pin on purpose.
   The push went from `podman load` + `podman push` (an uncompressed import of ~3.5 GB, then
   recompression) to skopeo on 2026-10-09: the first image pushed that way uploads, and clients
   download, every layer once (podman's gzip bytes differ from chunkah's).
