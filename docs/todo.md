@@ -174,10 +174,31 @@ mounts a root with that digest, and fs-verity checks every file on read (a tampe
 EIO). Without Secure Boot "nothing validates that root digest itself": any root process can
 replace the UKI, so a UKI alone adds little.
 
-- [ ] **Check what the T480 has now** (when it is up): the composefs backend enforces fs-verity
-      by default, also with BLS entries (`findmnt /` shows `verity=require`, `/proc/cmdline`
-      `composefs=`), on btrfs (`fsverity=yes` in the kernel log). That is the integrity half;
-      the digest there is written by the client, not authenticated.
+- [x] **Check what the T480 has now** (2026-10-09): fs-verity is enforced with the BLS entries
+      (`findmnt /` shows `verity=require`, `composefs.digest=v1-sha512-12:...` on the command
+      line, `fsverity=yes` in the kernel log). That is the integrity half; the digest there is
+      written by the client, not authenticated.
+- [ ] **btrfs compression + fs-verity: spurious `FILE CORRUPTED!`** on the T480 (kernel
+      7.2.9-1-cachyos, both boots since the install). The kernel logs `fs-verity (nvme0n1p3,
+      inode N): FILE CORRUPTED! pos=... level=-1` for objects of the composefs repository, mostly
+      at 128 KiB offsets (btrfs compressed extents), yet every read succeeds: reading the whole
+      root as roger gave no I/O error (20 messages on the way). Reproduced without root in
+      `/var/tmp`: a 60 MB file of libraries, SHA-512 verity enabled, page cache dropped, read 3
+      times: 10 messages and no read error when btrfs compressed it (`compress=zstd:1`), none
+      with `chattr +m` (uncompressed). Without verity, 10 reads of a 200 MB compressed file after
+      dropping the cache all gave the written bytes. So the stored data is intact and a readahead
+      of compressed extents fails verification, then the synchronous retry passes. Fedora IoT hit
+      the same message on btrfs with 6.16.8, where reads did fail (EIO, SIGBUS, broken login);
+      fixed by "btrfs: fix incorrect readahead expansion length" (Oct 2025,
+      https://discussion.fedoraproject.org/t/165159). A kernel where the retry fails too would
+      break the T480 the same way (`bootc rollback` boots the previous deployment, whose objects
+      are mostly the same files).
+      - Report to linux-btrfs with the reproducer, after checking a vanilla kernel (Arch
+        `linux`) to rule out CachyOS's patches.
+      - Avoid it on new installs: `bootc/install` mounts the root and sets `rootflags` with
+        `compress=zstd:1`; `chattr +m` on `/sysroot/composefs` before the image is written, or
+        no compression on the bootc root at all (costs disk: the objects are mostly binaries).
+        Existing objects stay compressed (verity files cannot be rewritten in place).
 - [ ] **Sealed images, together with LUKS + TPM2.** Sealing protects the system, not the data: a
       stolen laptop's `/var/home` is readable without disk encryption. The pair that pays off is
       a TPM2-bound LUKS key released only when our signed UKI boots (`systemd-cryptenroll`).

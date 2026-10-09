@@ -79,6 +79,9 @@
   installer: bootc only writes `timeout 5` when the file is missing, and `bootctl install` has
   just created it with every line commented out (no menu, bootc-dev/bootc#2558). Rehearsed in a VM booted from the ISO
   with a T480-like layout (2026-10-08).
+- `fs-verity ... FILE CORRUPTED!` in the T480's kernel log (kernel 7.2.9-1-cachyos) is a btrfs
+  bug with compressed extents (the root is mounted `compress=zstd:1` by `bootc/install`), not
+  damaged data: the reads succeed on retry. Details, reproducer and options in `docs/todo.md`.
 - Boot entry titles: bootc uses `PRETTY_NAME` and `VERSION_ID` of the image's `/usr/lib/os-release`;
   the Containerfile sets them to `Arch Linux (<recipe> <tag>)` and `<tag>.<HHMM>` (`VERSION` and
   `VERSION_ID` build args from `bootc/build`; systemd-boot appends the version to equal titles, two
