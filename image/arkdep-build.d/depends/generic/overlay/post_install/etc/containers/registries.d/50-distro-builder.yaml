@@ -1,0 +1,6 @@
+# The build server's registry keeps the sigstore signatures of its images (bootc, userland) next to
+# them (sha256-<digest>.sig), written by distro-builder's lib/push-image.sh and required by
+# /etc/containers/policy.json. The build server uses this same file to write them.
+docker:
+  192.168.2.50:5000:
+    use-sigstore-attachments: true

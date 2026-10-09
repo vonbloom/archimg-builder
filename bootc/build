@@ -35,5 +35,5 @@ podman run --rm --entrypoint pacman "$IMAGE" -Q >"$PKGS_DIR/$RECIPE-$TAG.pkgs"
 
 # Labels bootc reads: the version goes to the config labels (bootc's ostree backend reads them)
 # and the manifest annotations (the composefs backend reads only these: bootc-dev/bootc#2227).
-# bootc systems refuse unsigned images (bootc/overlay/etc/containers/policy.json)
+# bootc systems refuse unsigned images (policy.json of the generic overlay, image/arkdep-build.d)
 push_image "$IMAGE" "$REPOSITORY" "$TAG" --label ostree.bootable=1 --label containers.bootc=1

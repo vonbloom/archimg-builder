@@ -39,5 +39,6 @@ image" notification with the changes since the previous one.
 ## On the laptops
 
 Not yet: the laptops still create the boxes from the dotfiles' `default.ini` and `archlinux:latest`.
-Pending (`docs/todo.md`): the registry and the signature policy in the arkdep image, a host command
-that pulls the image, reads its `distrobox.ini` and recreates the boxes, and the waybar notice.
+The host images trust the registry and require its signature (the generic overlay of
+`image/arkdep-build.d/depends`). Pending (`docs/todo.md`): a host command that pulls the image,
+reads its `distrobox.ini` and recreates the boxes, and the waybar notice.

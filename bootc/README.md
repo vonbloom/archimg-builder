@@ -25,8 +25,9 @@ T480 runs bootc (`t480`, built weekly) and the P14s stays on arkdep (`p14s` boot
   for the notification.
 - Each image is signed with the build server's sigstore key when pushed; the signature lives in
   the registry next to it (`sha256-<digest>.sig`), and the bootc systems refuse an unsigned image
-  of `192.168.2.50:5000` (`overlay/etc/containers/policy.json`, `registries.d/50-distro-builder.yaml`,
-  public key `keys/distro-builder-sigstore.pub` copied to `/etc/pki/containers/distro-builder.pub`).
+  of `192.168.2.50:5000` (`/etc/containers/policy.json` and `registries.d/50-distro-builder.yaml`
+  from the generic overlay of `image/arkdep-build.d/depends`, shared with the arkdep images; public
+  key `keys/distro-builder-sigstore.pub` copied to `/etc/pki/containers/distro-builder.pub`).
   The status page marks each image "signada" or "sense signar".
 - `bootc/prune <recipe>` keeps the newest 4 dated images (`KEEP`), with their signatures, deletes
   the signatures of images no tag names any more (a second build of the same day replaces the

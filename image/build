@@ -27,6 +27,7 @@ echo "Builder: $(podman run --rm --replace --name "build-image-$RECIPE-version" 
 podman run \
 	--privileged --rm --replace --name "build-image-$RECIPE" \
 	-v "$(pwd)"/arkdep-build.d:/root/arkdep-build.d:Z \
+	-v "$(pwd)"/../keys:/root/keys:ro \
 	-v "$REPO_PATH":/root/target:Z \
 	"$BUILDER_IMAGE" "$RECIPE"
 

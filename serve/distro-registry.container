@@ -10,7 +10,8 @@ Image=docker.io/library/registry:2
 AutoUpdate=registry
 # bootc/prune runs garbage-collect in it by name
 ContainerName=distro-registry
-# Plain HTTP on the LAN: clients list it as insecure (bootc/overlay/etc/containers/registries.conf.d)
+# Plain HTTP on the LAN: clients list it as insecure (registries.conf.d in the generic overlay of
+# image/arkdep-build.d/depends)
 PublishPort=5000:5000
 # bootc/prune deletes old images through the API
 Environment=REGISTRY_STORAGE_DELETE_ENABLED=true

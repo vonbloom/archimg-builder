@@ -152,6 +152,13 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       and `mango` to try mangowm, in cachyos-extra-v3) -> device (ucode, firmware, tlp.d, dracut
       GPU config, initramfs), published as `<device>-<desktop>`. Each extra combination only builds
       its device layer, and switching desktop on a laptop is a `bootc switch` (rollback included).
+      Once bootc is the default, the arkdep conventions of `image/arkdep-build.d` (`depends.list`,
+      `bootstrap.list`/`package.list`, `post_bootstrap`/`post_install` overlays, `extensions/`,
+      `build-recipe.sh` replaying them) go: each layer gets its own manifest (packages and overlay
+      next to its Containerfile, like `userland/`). What lives in `depends/generic` for both builds
+      today moves to the base layer, e.g. the registry's client config (`etc/containers`, moved
+      there from `bootc/overlay` on 2026-10-09) and its key (`post_install.sh` for arkdep,
+      `build-recipe.sh` for bootc: one `install` in the base layer).
 - [ ] Rebuild only what changed: drop `--no-cache` and let podman reuse layers, with a fingerprint
       of the package versions available for each layer (`pacman -Sy` + `pacman -Sp`, ~20 s) as a
       `--build-arg` of its install step, so a new package version invalidates that layer and the
@@ -173,10 +180,12 @@ was 8.9 GB, 3.7 GB of it package cache); a box created from it on the P14s start
 without installing anything, with zsh, `ca_ES.UTF-8`, the apps and the remote podman working.
 Still to do, in order:
 
-- [ ] **Pull from the registry on the laptops**: the arkdep image gets what `bootc/overlay` has for
-      the registry (`registries.conf.d` with `192.168.2.50:5000` as insecure,
-      `/etc/pki/containers/distro-builder.pub`, a `policy.json` that requires the signature for
-      that registry and keeps Arch's default for the others: distrobox and dev container images).
+- [ ] **Pull from the registry on the laptops**: the registry's client config moved from
+      `bootc/overlay` to the generic overlay (`registries.conf.d` with `192.168.2.50:5000` as
+      insecure, `registries.d`, a `policy.json` that requires the signature for that registry and
+      keeps Arch's default for the others), and the arkdep image gets the key from `keys/`
+      (2026-10-09). To check once the P14s runs an image built with it: `podman pull
+      192.168.2.50:5000/userland:latest` works, and an unsigned image there is refused.
 - [ ] **`userland-update`** in the host images (arkdep and bootc): pull `userland:latest`; if
       the digest is new, read `distrobox.ini` and the D-Bus services from the image, put the
       pulled digest in its `image=` lines, `distrobox assemble create --replace` (it stops Brave

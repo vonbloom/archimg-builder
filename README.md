@@ -109,9 +109,11 @@ Clients get the public key from this repository, not from the server they verify
   unsigned images). The installer sets it up; on an existing machine:
   `sudo sh -c 'gpg --dearmor < keys/distro-builder.asc > /arkdep/keys/trusted-keys'`;
 - the `[aur]` clients: `pacman-key --add` + `--lsign-key` (see [aur/README.md](aur/README.md));
-- bootc systems: `/etc/pki/containers/distro-builder.pub` in the image, required for
-  `192.168.2.50:5000` by `/etc/containers/policy.json` (bootc refuses unsigned updates);
-  `bootc/install` sets the same up in the live system before pulling the image.
+- the registry's clients (bootc systems, and podman on every laptop for the userland image):
+  `/etc/pki/containers/distro-builder.pub` in the image, required for `192.168.2.50:5000` by
+  `/etc/containers/policy.json` (the generic overlay of `image/arkdep-build.d/depends`; bootc
+  refuses unsigned updates, podman unsigned pulls); `bootc/install` sets the same up in the live
+  system before pulling the image.
 
 ### Notifications
 

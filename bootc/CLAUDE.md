@@ -29,16 +29,21 @@
   The push went from `podman load` + `podman push` (an uncompressed import of ~3.5 GB, then
   recompression) to skopeo on 2026-10-09: the first image pushed that way uploads, and clients
   download, every layer once (podman's gzip bytes differ from chunkah's).
-- `bootc/overlay/` holds files only bootc images need: the registry as insecure in
-  `registries.conf.d`, and `@{HOMEDIRS}+=/var/home/` for AppArmor (`/home` links to `/var/home`).
+- `bootc/overlay/` holds files only bootc images need: `@{HOMEDIRS}+=/var/home/` for AppArmor
+  (`/home` links to `/var/home`), `bootc-update`, the random seed unit. The registry's client
+  config (`/etc/containers`: insecure in `registries.conf.d`, `registries.d`, `policy.json`) lives
+  in the generic overlay of `image/arkdep-build.d/depends` since 2026-10-09: the arkdep images
+  pull the userland image from the registry too. The key: `build-recipe.sh` here,
+  `common/extensions/post_install.sh` for arkdep (`image/build` mounts `keys/`).
 - Signing (sigstore, since 2026-10-08): `bootc/build` pushes the dated tag with
   `--sign-by-sigstore-private-key /etc/distro-builder/sigstore/distro-builder.private
   --sign-passphrase-file .../passphrase` (root only, restored from the homelab vault) and `latest`
   unsigned (same digest, same signature). The push goes to `192.168.2.50:5000`, not localhost: the
   signature names the reference it was pushed as, and the clients' policy uses `matchRepository`.
   skopeo (like podman) only writes sigstore attachments with `use-sigstore-attachments` in
-  registries.d: the server gets `overlay/etc/containers/registries.d/50-distro-builder.yaml` from
-  `install`, and `bootc/build` mounts `/etc/containers/registries.d` into the skopeo container. The clients'
+  registries.d: the server gets the generic overlay's `registries.d/50-distro-builder.yaml` from
+  `install`, and `lib/push-image.sh` mounts `/etc/containers/registries.d` into the skopeo
+  container. The clients'
   `policy.json` keeps Arch's default (accept anything) for every other registry, so distrobox and dev
   container images are unaffected. composefs bootc pulls through skopeo's image proxy with the default
   config, which applies `/etc/containers/policy.json` (`bootc_composefs/repo.rs`). `prune` deletes every

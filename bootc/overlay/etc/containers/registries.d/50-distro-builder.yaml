@@ -1,6 +1,0 @@
-# The build server's registry keeps the sigstore signatures of the bootc images next to them
-# (sha256-<digest>.sig), written by distro-builder's bootc/build and required by
-# /etc/containers/policy.json. The build server uses this same file to write them.
-docker:
-  192.168.2.50:5000:
-    use-sigstore-attachments: true

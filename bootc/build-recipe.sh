@@ -57,7 +57,8 @@ mapfile -t pkgs < <(lists package.list | grep -vE "$skip")
 pacman -S --noconfirm --needed "${pkgs[@]}"
 overlays post_install
 # Files only bootc systems need, before the presets (80-bootc.preset enables bootc-update.timer),
-# and the public key that the policy.json of the overlay checks the image signatures with
+# and the public key that the generic overlay's policy.json checks the registry's images with (the
+# arkdep images get it in common/extensions/post_install.sh)
 copy_overlay /ctx/bootc/overlay
 install -D -m 644 /ctx/keys/distro-builder-sigstore.pub /etc/pki/containers/distro-builder.pub
 sed -i 's/ altfiles//' /etc/nsswitch.conf
