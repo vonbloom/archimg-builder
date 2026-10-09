@@ -1,0 +1,43 @@
+# userland image
+
+The image of the `userland` distrobox, where everything interactive runs (VS Code, Brave, neovim,
+Ansible...), and of `playground`, the box for trying packages. The boxes are created from the image
+and replaced by the next one instead of being upgraded in place: the same contents on every
+machine, no first setup that installs hundreds of packages on each of them, and a previous tag to
+go back to.
+
+| File | What it is |
+|---|---|
+| `Containerfile` | Arch (`archlinux/archlinux:latest`) with `[cachyos]` and `[aur]`, the packages, the boxes' setup |
+| `packages.list` | the packages, with what each group is for |
+| `distrobox.ini` | the boxes for `distrobox assemble`: `[playground]` (image, volume, flags) and `[userland]` (plus the apps and commands exported to the host) |
+| `dbus-1/services/` | D-Bus services the host's session bus starts in the box (gvfs, xfconf) |
+| `build` | builds the image and pushes it to the registry |
+
+The image carries `distrobox.ini` and the D-Bus services in `/usr/share/userland/`: the host reads
+them from the image it creates the boxes from, so the exports always match the packages, and going
+back to an older image brings back its exports too.
+
+## Builds
+
+`build-userland.service` runs `build` every Sunday at 15:00 Europe/Madrid (after the arkdep and
+bootc images, under the same lock), or by hand: the status page, or
+`sudo systemctl start build-userland.service`. It pushes `192.168.2.50:5000/userland:YYYY-MM-DD` and
+`:latest`, signed with the server's sigstore key, in per-package layers: a new image downloads only
+the packages that changed. `bootc/prune` keeps the newest 4 dated tags. The package list of each
+image is at `http://192.168.2.50/userland/userland-<date>.pkgs`, and the build sends a "New userland
+image" notification with the changes since the previous one.
+
+## Changing the packages
+
+1. Try the package in `playground` (`playground`, then `sudo pacman -S <package>`): the same image,
+   with the same repositories.
+2. Add it to `packages.list`, and to `exported_apps` or `exported_bins` in `distrobox.ini` if the
+   host must see it. An AUR package must be in `aur/packages.list` too (built into `[aur]`).
+3. Push, and start a build by hand if it cannot wait until Sunday.
+
+## On the laptops
+
+Not yet: the laptops still create the boxes from the dotfiles' `default.ini` and `archlinux:latest`.
+Pending (`docs/todo.md`): the registry and the signature policy in the arkdep image, a host command
+that pulls the image, reads its `distrobox.ini` and recreates the boxes, and the waybar notice.

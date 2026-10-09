@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly build of the userland distrobox image
+
+[Timer]
+# After the arkdep (08:00) and bootc (13:00) images: all builds share /run/build-image.lock and run
+# in turn. The [aur] packages it installs are rebuilt every night (build-aur.timer)
+OnCalendar=Sun *-*-* 15:00 Europe/Madrid
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

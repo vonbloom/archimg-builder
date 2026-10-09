@@ -15,16 +15,21 @@ serve/    nginx quadlet serving /mnt/repo (/<recipe>/, /aur/, /iso/) and the sta
           (web/index.html; status-gen writes /run/distro-status, served at /status/;
           build-trigger starts builds: POST /api/build/<unit>, polkit rule distro-trigger.rules);
           distro-registry.container: registry:2 on port 5000 (plain HTTP), storage /mnt/repo/registry
-systemd/  build-image@.{service,timer}, build-bootc@.{service,timer}, build-aur.{service,timer}, build-iso.service,
+          (bootc and userland images)
+systemd/  build-image@.{service,timer}, build-bootc@.{service,timer}, build-aur.{service,timer},
+          build-userland.{service,timer}, build-iso.service,
           distro-status.{service,timer} (every minute), distro-trigger.{socket,service}
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
-          sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg)
+          sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg),
+          push-image.sh (chunkah + signed skopeo push to the registry: bootc and userland images)
 docs/     todo.md: pending improvements (boot time, storage, memory)
 ci/       check: static checks (shellcheck, Python syntax, stray files, exec bits, recipe structure),
           run by GitHub Actions on every push (.github/workflows/check.yml)
 bootc/    the recipes as bootc images (trial, the T480): Containerfile, build-recipe.sh,
           build (chunkah + push to the registry), prune, install (from the ISO), overlay/; design
           and VM results in bootc/README.md
+userland/ the userland distrobox image: Containerfile, packages.list, distrobox.ini (the box
+          manifest, carried by the image), dbus-1/, build; prune is bootc/prune
 keys/     distro-builder.asc: public signing key, trusted by arkdep, pacman and the installer;
           distro-builder-sigstore.pub: public key of the bootc image signatures
 install   links the units and the quadlet, installs the polkit rule, enables the timers (also

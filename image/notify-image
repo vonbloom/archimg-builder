@@ -3,7 +3,8 @@
 # Report the newest image of a recipe to Home Assistant (notify-ha, from the homelab repo), with
 # the package changes since the previous image. A package count that drops by more than 20 % is
 # reported as a warning: arkdep-build can silently skip the package stage (see CLAUDE.md).
-# build-bootc@ uses it too: REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc.
+# build-bootc@ and build-userland use it too: REPO_PATH=/mnt/repo/bootc/<recipe> KIND=bootc,
+# REPO_PATH=/mnt/repo/userland KIND=userland.
 
 set -euo pipefail
 
@@ -16,7 +17,7 @@ new=${lists[0]:?no image found}
 image=$(basename "$new" .pkgs)
 total=$(wc -l <"$new")
 kernel=$(awk '$1 ~ /^linux(-cachyos)?$/ { print $1, $2 }' "$new")
-message="$total packages, kernel ${kernel:-unknown}."
+message="$total packages${kernel:+, kernel $kernel}."  # the userland image has no kernel
 name="${KIND:+$KIND }image"
 status=info title="New $name $image"
 

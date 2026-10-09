@@ -163,6 +163,32 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       downloads per build (40 s today).
 - The rpool NVMe replacement (homelab TODO) speeds up every I/O bound phase.
 
+## userland image
+
+The userland distrobox built here as an image (`userland/`, 2026-10-09) instead of assembled and
+upgraded in place on each machine from the dotfiles' `default.ini`. Done: the image, its manifest
+(`/usr/share/userland/distrobox.ini`), the weekly build and the status page. Test builds on the
+server (2026-10-09): 15 min, 1.63 GB compressed in 128 layers (the live userland's writable layer
+was 8.9 GB, 3.7 GB of it package cache); a box created from it on the P14s started in 13 s
+without installing anything, with zsh, `ca_ES.UTF-8`, the apps and the remote podman working.
+Still to do, in order:
+
+- [ ] **Pull from the registry on the laptops**: the arkdep image gets what `bootc/overlay` has for
+      the registry (`registries.conf.d` with `192.168.2.50:5000` as insecure,
+      `/etc/pki/containers/distro-builder.pub`, a `policy.json` that requires the signature for
+      that registry and keeps Arch's default for the others: distrobox and dev container images).
+- [ ] **`userland-update`** in the host images (arkdep and bootc): pull `userland:latest`; if
+      the digest is new, read `distrobox.ini` and the D-Bus services from the image, put the
+      pulled digest in its `image=` lines, `distrobox assemble create --replace` (it stops Brave
+      and VS Code: run by the user, not by itself), copy the services to
+      `~/.local/share/dbus-1/services`. `deploy-userland` uses it for the first setup, which no
+      longer needs the dotfiles cloned first.
+- [ ] **Try it on the T480**, then the P14s. The dotfiles lose the `distrobox` package
+      (`default.ini`, `pre_init_distrobox_assemble.sh`, the copy of the `[aur]` key, the D-Bus
+      services) and their docs (dotfiles `CLAUDE.md`, "Host vs container").
+- [ ] **waybar notice**: a user timer pulls the new image (staged) and the indicator shows it,
+      like `arkdep-update-status` does for the system.
+
 ## bootc: sealed images (if bootc stays)
 
 Read 2026-10-09: the bootc.dev series "Sealed images" (2026-05-04 to 05-07) and the bootc docs

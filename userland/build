@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Usage: build
+# Build the userland image (userland/Containerfile) and push it to the registry as
+# userland:YYYY-MM-DD and userland:latest, split into per-package layers (lib/push-image.sh). The
+# package list is written to PKGS_DIR for notify-image and the status page.
+# Test run on the build server: REPOSITORY=test/userland PKGS_DIR=/some/dir (next to the real
+# image, not over it; delete its manifests through the registry API afterwards)
+
+set -euo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")/.."
+
+REPOSITORY=${REPOSITORY:-userland}
+PKGS_DIR=${PKGS_DIR:-/mnt/repo/userland}
+TAG=$(date +%Y-%m-%d)
+IMAGE=localhost/userland
+# shellcheck source=lib/push-image.sh
+. lib/push-image.sh
+
+build_args=()
+[[ -n ${AUR_SERVER:-} ]] && build_args+=(--build-arg "AUR_SERVER=$AUR_SERVER")
+[[ -n ${AUR_SIGLEVEL:-} ]] && build_args+=(--build-arg "AUR_SIGLEVEL=$AUR_SIGLEVEL")
+
+mkdir -p "$PKGS_DIR"
+
+# --no-cache: a weekly build must install the current packages, not reuse last week's layers
+podman build --pull=always --no-cache -f userland/Containerfile "${build_args[@]}" -t "$IMAGE" .
+
+podman run --rm --entrypoint pacman "$IMAGE" -Q >"$PKGS_DIR/userland-$TAG.pkgs"
+
+push_image "$IMAGE" "$REPOSITORY" "$TAG"

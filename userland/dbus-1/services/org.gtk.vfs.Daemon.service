@@ -1,0 +1,5 @@
+# gvfs lives in the userland distrobox; let D-Bus start its daemon there on demand
+# (pcmanfm smb:// and other gvfs mounts). The host has no gvfs of its own.
+[D-BUS Service]
+Name=org.gtk.vfs.Daemon
+Exec=/usr/bin/distrobox enter userland -- /usr/lib/gvfsd

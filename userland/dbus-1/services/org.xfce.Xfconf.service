@@ -1,0 +1,5 @@
+# xfconfd (Xfce settings store) lives in the userland distrobox; let D-Bus start it there on
+# demand, or Thunar cannot save its preferences (menu bar, view, location selector...).
+[D-BUS Service]
+Name=org.xfce.Xfconf
+Exec=/usr/bin/distrobox enter userland -- /usr/lib/xfce4/xfconf/xfconfd

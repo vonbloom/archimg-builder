@@ -2,14 +2,15 @@
 
 Build and distribution tooling for a personal, immutable CachyOS/Arch-based distro on
 [arkdep](https://github.com/arkanelinux/arkdep). The root filesystem of each laptop is a read-only
-btrfs image built here; interactive software lives in a distrobox (`userland`) fed by a small
-repository of prebuilt AUR packages, also built here. An installer ISO puts the whole thing on a
+btrfs image built here; interactive software lives in a distrobox (`userland`), whose image is
+also built here, with a small repository of prebuilt AUR packages. An installer ISO puts the whole thing on a
 new machine.
 
 | Tool | What it produces | Where it is published | When |
 |---|---|---|---|
 | [`image/`](image/README.md) | arkdep images, one per device recipe | `http://192.168.2.50/<recipe>/` | weekly (Sunday 08:00 Europe/Madrid) |
 | [`bootc/`](bootc/README.md) | bootc images of the same recipes (trial: the T480 runs them) | registry `192.168.2.50:5000/<recipe>` | weekly (Sunday 13:00 Europe/Madrid) |
+| [`userland/`](userland/README.md) | the image of the `userland` and `playground` distroboxes | registry `192.168.2.50:5000/userland` | weekly (Sunday 15:00 Europe/Madrid) |
 | [`aur/`](aur/README.md) | the pacman repository `[aur]` | `http://192.168.2.50/aur/` | daily (04:00 UTC) |
 | [`iso/`](iso/README.md) | the installer ISO | `http://192.168.2.50/iso/` | by hand |
 
@@ -20,12 +21,13 @@ and the registry.
 ```
 image/    recipes (arkdep-build.d/), build, prune, notify-image
 bootc/    Containerfile and build-recipe.sh (the recipes as bootc images), build, prune, overlay/
+userland/ Containerfile, packages.list and distrobox.ini (the userland distrobox image), build
 aur/      packages.list, local/ (own PKGBUILDs), aur-build.sh, build
 iso/      installer ISO: Containerfile, build, test-vm, airootfs/ (install.sh, arkdep.config)
 serve/    web server (nginx quadlet): /mnt/repo and the status page (web/, status-gen, build-trigger);
-          container registry (quadlet) for the bootc images
+          container registry (quadlet) for the bootc and userland images
 systemd/  build units and timers, distro-status (page data), distro-trigger (manual builds)
-lib/      builder.sh, sign.sh: shared by the build scripts
+lib/      builder.sh, sign.sh, push-image.sh: shared by the build scripts
 ci/       check: static checks, run by GitHub Actions (.github/workflows/check.yml) on every push
 install   sets up the build server
 ```
@@ -50,7 +52,7 @@ checkout `/home/admin/distro-builder`), never on the laptops. Requirements:
   AUR packages and ISOs are written there and served from there;
 - `notify-ha` and the `notify-failure@.service` template, installed by the homelab repo (Ansible
   role `notify_ha`), for the Home Assistant notifications;
-- port 5000 reachable from the LAN for the container registry (the bootc images).
+- port 5000 reachable from the LAN for the container registry (the bootc and userland images).
 
 The VM is defined in the homelab repo and is rebuilt from scratch rather than backed up: Ansible
 creates it (`pve_guests`, cloud-init), clones this repository and runs `install` (play "Build
@@ -63,11 +65,12 @@ sudo ~/distro-builder/install   # or: sudo ARKDEP_RECIPES="p14s t480" BOOTC_RECI
 
 `install` links the units in `systemd/` into `/etc/systemd/system`, the quadlets
 `serve/distro-repo.container` and `serve/distro-registry.container` into `/etc/containers/systemd`,
-creates `/mnt/repo/registry` and `/mnt/repo/bootc`, installs the polkit rule of the build trigger,
-enables `build-aur.timer`, the weekly `build-image@<recipe>.timer` of the recipes in
-`ARKDEP_RECIPES` (default `p14s`) and `build-bootc@<recipe>.timer` of those in `BOOTC_RECIPES`
-(default `t480`), `distro-status.timer`, `distro-trigger.socket` and `podman-auto-update.timer`,
-and (re)starts the web server and the registry. The defaults are what each laptop runs while arkdep
+creates `/mnt/repo/registry`, `/mnt/repo/bootc` and `/mnt/repo/userland`, installs the polkit rule
+of the build trigger, enables `build-aur.timer`, `build-userland.timer`, the weekly
+`build-image@<recipe>.timer` of the recipes in `ARKDEP_RECIPES` (default `p14s`) and
+`build-bootc@<recipe>.timer` of those in `BOOTC_RECIPES` (default `t480`), `distro-status.timer`,
+`distro-trigger.socket` and `podman-auto-update.timer`, and (re)starts the web server and the
+registry. The defaults are what each laptop runs while arkdep
 and bootc are compared (P14s arkdep, T480 bootc); the other recipes' timers are disabled, and their
 builds stay available by hand (`systemctl start`, or the status page, which lists the arkdep and
 bootc builds of every recipe). It is idempotent: run it again to change the schedules, or after
@@ -96,8 +99,8 @@ restores it. Without the key (a local test run) nothing is signed and the script
 The bootc images are signed with a second key, in sigstore format (ECDSA P-256, public part in
 `keys/distro-builder-sigstore.pub`), the format `podman`, `skopeo` and bootc verify natively: the
 private key and its passphrase live in `/etc/distro-builder/sigstore` (root, mode 700) and in the
-homelab vault, like the GPG key. `bootc/build` signs each image when pushing it; the signature is
-stored in the registry next to the image (`sha256-<digest>.sig`).
+homelab vault, like the GPG key. `lib/push-image.sh` signs each bootc and userland image when
+pushing it; the signature is stored in the registry next to the image (`sha256-<digest>.sig`).
 
 Clients get the public key from this repository, not from the server they verify:
 
@@ -117,4 +120,5 @@ Home Assistant with the end of its journal. A successful image build sends "New 
 `image-<recipe>`) with its package count, kernel and the changes since the previous image; it is
 sent as a warning when the package count drops by more than 20 % (see
 [image/README.md](image/README.md#sanity-check)). A bootc image build sends the same as "New bootc image ..." (tag
-`bootc-<recipe>`).
+`bootc-<recipe>`), and a userland image build as "New userland image ..." (tag `userland-userland`,
+without a kernel).

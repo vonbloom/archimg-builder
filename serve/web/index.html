@@ -157,9 +157,37 @@ function size(b) {
 function unitTitle(u) {
   if (u.kind === "image") return `Imatge ${u.target}`;
   if (u.kind === "bootc") return `Imatge bootc ${u.target}`;
+  if (u.kind === "userland") return "Imatge userland";
   if (u.kind === "aur") return "Paquets AUR";
   if (u.kind === "iso") return "ISO instal·lador";
   return u.unit;
+}
+
+// One table of images in the registry: tags, signature, size, packages and changes
+function registryImages(title, name, images, pkgsDir, unsignedTitle) {
+  const parts = [h("h2", {}, title)];
+  const ref = `${location.hostname}:5000/${name}`;
+  parts.push(h("p", { class: "muted small" }, "Al registre: ", h("code", {}, `${ref}:latest`)));
+  const rows = [h("tr", {}, ["Etiqueta", "Publicada", "Mida", "Capes", "Paquets", "Kernel", "Canvis", ""].map(t => h("th", {}, t)))];
+  for (const img of images) {
+    const key = `registry/${name}/${img.tag}`;
+    const toggle = () => { openDiffs.has(key) ? openDiffs.delete(key) : openDiffs.add(key); renderImages(); };
+    rows.push(h("tr", {},
+      h("td", { class: "mono", title: `${ref}:${img.tag}` }, img.tag, img.latest ? h("span", { class: "pill latest" }, "latest") : null,
+        img.signed ? h("span", { class: "pill signed", title: "Signada amb la clau sigstore del servidor" }, "signada")
+          : h("span", { class: "pill unsigned", title: unsignedTitle }, "sense signar")),
+      h("td", { title: when(img.created) }, ago(img.created)),
+      h("td", { class: "num", title: "Comprimida, al registre" }, size(img.size)),
+      h("td", { class: "num" }, img.layers),
+      h("td", { class: "num" }, img.packages ?? "—"),
+      h("td", { class: "mono" }, img.kernel ? img.kernel[1] : "—"),
+      h("td", img.diff ? { onclick: toggle, title: "Mostra els canvis respecte de la imatge anterior" } : {}, diffSummary(img.diff)),
+      h("td", {}, h("a", { href: `${pkgsDir}${name}-${img.tag}.pkgs` }, "paquets"))));
+    if (img.diff && openDiffs.has(key)) rows.push(h("tr", { class: "detail" }, h("td", { colspan: 8 }, diffDetail(img.diff))));
+  }
+  if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 8, class: "muted" }, "Cap imatge publicada.")));
+  parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
+  return parts;
 }
 
 function renderUnits() {
@@ -217,31 +245,14 @@ function renderImages() {
     if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 7, class: "muted" }, "Cap imatge publicada.")));
     parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
   }
-  // bootc images: tags in the registry (port 5000 of this host), package lists under /bootc/
-  for (const [recipe, images] of Object.entries(data.bootc || {})) {
-    parts.push(h("h2", {}, `Imatges bootc ${recipe}`));
-    const ref = `${location.hostname}:5000/${recipe}`;
-    parts.push(h("p", { class: "muted small" }, "Al registre: ", h("code", {}, `${ref}:latest`)));
-    const rows = [h("tr", {}, ["Etiqueta", "Publicada", "Mida", "Capes", "Paquets", "Kernel", "Canvis", ""].map(t => h("th", {}, t)))];
-    for (const img of images) {
-      const key = `bootc/${recipe}/${img.tag}`;
-      const toggle = () => { openDiffs.has(key) ? openDiffs.delete(key) : openDiffs.add(key); renderImages(); };
-      rows.push(h("tr", {},
-        h("td", { class: "mono", title: `${ref}:${img.tag}` }, img.tag, img.latest ? h("span", { class: "pill latest" }, "latest") : null,
-          img.signed ? h("span", { class: "pill signed", title: "Signada amb la clau sigstore del servidor" }, "signada")
-            : h("span", { class: "pill unsigned", title: "Sense signatura: els sistemes bootc la rebutgen" }, "sense signar")),
-        h("td", { title: when(img.created) }, ago(img.created)),
-        h("td", { class: "num", title: "Comprimida, al registre" }, size(img.size)),
-        h("td", { class: "num" }, img.layers),
-        h("td", { class: "num" }, img.packages ?? "—"),
-        h("td", { class: "mono" }, img.kernel ? img.kernel[1] : "—"),
-        h("td", img.diff ? { onclick: toggle, title: "Mostra els canvis respecte de la imatge anterior" } : {}, diffSummary(img.diff)),
-        h("td", {}, h("a", { href: `/bootc/${recipe}/${recipe}-${img.tag}.pkgs` }, "paquets"))));
-      if (img.diff && openDiffs.has(key)) rows.push(h("tr", { class: "detail" }, h("td", { colspan: 8 }, diffDetail(img.diff))));
-    }
-    if (!images.length) rows.push(h("tr", {}, h("td", { colspan: 8, class: "muted" }, "Cap imatge publicada.")));
-    parts.push(h("div", { class: "table-wrap" }, h("table", {}, rows)));
-  }
+  // Images in the registry (port 5000 of this host): bootc per recipe, package lists under
+  // /bootc/<recipe>/; the userland distrobox image, package lists under /userland/
+  for (const [recipe, images] of Object.entries(data.bootc || {}))
+    parts.push(...registryImages(`Imatges bootc ${recipe}`, recipe, images, `/bootc/${recipe}/`,
+      "Sense signatura: els sistemes bootc la rebutgen"));
+  if ((data.userland || []).length)
+    parts.push(...registryImages("Imatge userland", "userland", data.userland, "/userland/",
+      "Sense signatura"));
   box.replaceChildren(...parts);
 }
 
@@ -277,7 +288,7 @@ function renderMeta() {
     h("span", { title: `${size(st.free)} lliures de ${size(st.total)}` },
       ` · repositori ${size(used)} / ${size(st.total)}`,
       h("div", { class: "bar" }, h("div", { style: `width:${(100 * used / st.total).toFixed(1)}%` }))));
-  document.getElementById("dirs").replaceChildren(...[...Object.keys(data.recipes), ...(Object.keys(data.bootc || {}).length ? ["bootc"] : []), "aur", "iso"]
+  document.getElementById("dirs").replaceChildren(...[...Object.keys(data.recipes), ...(Object.keys(data.bootc || {}).length ? ["bootc"] : []), ...((data.userland || []).length ? ["userland"] : []), "aur", "iso"]
     .flatMap((d, i) => [i ? " · " : "", h("a", { href: `/${d}/` }, `/${d}/`)]));
 }
 

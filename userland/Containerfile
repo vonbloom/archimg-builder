@@ -1,0 +1,62 @@
+# The userland distrobox as an image: Arch with [cachyos] and [aur], the packages of
+# userland/packages.list and the box manifest. Built and pushed to the registry by userland/build
+# (build-userland.service); the hosts create the userland and playground boxes from it with the
+# manifest it carries (/usr/share/userland/distrobox.ini) and replace them with each new image
+# instead of upgrading them.
+#   podman build -f userland/Containerfile -t localhost/userland .
+# Build context: the repository root (the [aur] key is read from keys/).
+
+FROM docker.io/archlinux/archlinux:latest
+
+# The [aur] repository. Local test runs against an unsigned repository: --build-arg AUR_SIGLEVEL=Never
+ARG AUR_SERVER=http://192.168.2.50/aur
+ARG AUR_SIGLEVEL=Required
+
+# Repositories after Arch's [core] and [extra], in priority order: [cachyos] (the generic x86_64
+# repository only, not the -v3 ones, so the base stays Arch) and [aur], prebuilt AUR packages
+# (distro-builder aur/), signed by the build server. A package in both (brave-bin) comes from
+# [cachyos]. The Arch image skips man pages, locales and docs (NoExtract): enabled as distrobox-init
+# does
+RUN --mount=type=bind,source=keys/distro-builder.asc,target=/distro-builder.asc \
+    pacman-key --init && pacman-key --populate archlinux && \
+    pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com && \
+    pacman-key --lsign-key F3B607488DB35A47 && \
+    pacman-key --add /distro-builder.asc && \
+    pacman-key --lsign-key CF471E6685974BF43EA113623F9EBD77B1E60E55 && \
+    sed -i -e 's/^NoExtract.*//' -e 's/^NoProgressBar.*//' /etc/pacman.conf && \
+    printf '\n[cachyos]\nServer = https://mirror.cachyos.org/repo/x86_64/$repo/\n\n[aur]\nSigLevel = %s\nServer = %s\n' \
+      "$AUR_SIGLEVEL" "$AUR_SERVER" >> /etc/pacman.conf && \
+    pacman -Syu --noconfirm
+
+# Package hooks that call systemctl fail in a box (no systemd as PID 1): a /dev/null link disables
+# the hook of that name. openssh's marks sshd for restart on every upgrade (in the playground box;
+# no sshd runs in the boxes)
+RUN mkdir -p /etc/pacman.d/hooks && \
+    ln -s /dev/null /etc/pacman.d/hooks/10-openssh-mark-sshd-for-restart.hook
+
+# The downloaded packages go: the live userland had 3.7 GB of them. Not pacman -Scc --noconfirm,
+# which answers no to removing the cache
+RUN --mount=type=bind,source=userland/packages.list,target=/packages.list \
+    sed 's/#.*//' /packages.list | xargs -r pacman -S --noconfirm --needed && \
+    rm -rf /var/cache/pacman/pkg/*
+
+# The fonts' cache, once here instead of at every box start. podman in the boxes is a client of the
+# host's (rootless) podman socket, as podman-remote: the full podman binary checks the host's
+# pause.pid at startup, even with remote = true, takes the host's pause process for a stale one
+# and deletes the file (podman 6.1.3; the host then starts another pause process at every call).
+# /usr/local/bin comes first in PATH; remote = true stays for a podman called by its full path.
+# distrobox-init upgrades every package and installs its dependencies on a box's first start
+# unless /.containersetupdone exists: the image has them, and updates come as a new image
+RUN fc-cache -f && \
+    mkdir -p /etc/containers/containers.conf.d /usr/local/bin && \
+    printf '[engine]\nremote = true\n' > /etc/containers/containers.conf.d/99-remote.conf && \
+    ln -s /usr/bin/podman-remote /usr/local/bin/podman && \
+    touch /.containersetupdone
+
+# The box manifest and the host integration, read from the image by the host. install, not COPY:
+# the checkout's modes (664 with the build server's umask 0002) would end up in the image
+RUN --mount=type=bind,source=userland,target=/src \
+    install -D -m 644 /src/distrobox.ini /usr/share/userland/distrobox.ini && \
+    install -D -m 644 -t /usr/share/userland/dbus-1/services /src/dbus-1/services/*.service
+
+LABEL org.opencontainers.image.title=userland

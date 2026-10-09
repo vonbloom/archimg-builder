@@ -1,0 +1,19 @@
+[Unit]
+Description=Build the userland distrobox image and push it to the registry
+After=network-online.target remote-fs.target distro-registry.service
+# Wants, not Requires: bootc/prune restarts the registry, which would stop a requiring unit
+Wants=network-online.target distro-registry.service
+RequiresMountsFor=/mnt/repo
+# notify-failure@ comes from the homelab repo (notify_ha role)
+OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+# Bring the checkout up to date first (fast-forward only). A failed pull (GitHub down, local
+# changes) does not stop the build: it runs with the code already there.
+ExecStartPre=-/usr/bin/flock /run/distro-builder-git.lock /usr/sbin/runuser -u admin -- git -C /home/admin/distro-builder pull --ff-only
+# One build at a time with the other builds, prune included (see build-bootc@.service). bootc/prune
+# handles any repository of the registry: the userland image keeps its package lists elsewhere
+ExecStart=/usr/bin/flock /run/build-image.lock /bin/sh -c '/home/admin/distro-builder/userland/build && PKGS_DIR=/mnt/repo/userland /home/admin/distro-builder/bootc/prune userland'
+ExecStartPost=/usr/bin/env REPO_PATH=/mnt/repo/userland KIND=userland /home/admin/distro-builder/image/notify-image userland
+TimeoutStartSec=3h

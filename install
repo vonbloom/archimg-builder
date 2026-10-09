@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the build units, the status page (generator and build trigger) and the web server, and
-# enable the timers
+# enable the timers (the userland image's weekly too)
 # (run as root on the build server). Idempotent: run it again after changes to systemd/ or serve/.
 # Usage: [ARKDEP_RECIPES="p14s ..."] [BOOTC_RECIPES="t480 ..."] install
 # Weekly builds: the arkdep images of ARKDEP_RECIPES (default p14s) and the bootc images of
@@ -17,25 +17,26 @@ timers=()
 for recipe in "${arkdep_recipes[@]}"; do timers+=("build-image@$recipe.timer"); done
 for recipe in "${bootc_recipes[@]}"; do timers+=("build-bootc@$recipe.timer"); done
 
-ln -sf "$(pwd)"/systemd/build-{image@,bootc@,aur}.{service,timer} "$(pwd)"/systemd/build-iso.service \
+ln -sf "$(pwd)"/systemd/build-{image@,bootc@,aur,userland}.{service,timer} "$(pwd)"/systemd/build-iso.service \
 	"$(pwd)"/systemd/distro-status.{service,timer} "$(pwd)"/systemd/distro-trigger.{service,socket} \
 	/etc/systemd/system/
 ln -sf "$(pwd)"/serve/distro-{repo,registry}.container /etc/containers/systemd/
-# Registry storage and the bootc images' package lists (notify-image), on the NFS pool
-mkdir -p /mnt/repo/registry /mnt/repo/bootc
+# Registry storage and the package lists of the bootc and userland images (notify-image), on the
+# NFS pool
+mkdir -p /mnt/repo/registry /mnt/repo/bootc /mnt/repo/userland
 ln -sf "$(pwd)"/serve/distro-status.tmpfiles /etc/tmpfiles.d/distro-status.conf
 systemd-tmpfiles --create /etc/tmpfiles.d/distro-status.conf
 # Copied, not linked: polkitd cannot read the admin home directory
 install -m 644 serve/distro-trigger.rules /etc/polkit-1/rules.d/50-distro-trigger.rules
-# bootc/build signs the bootc images with a sigstore key and podman writes the signatures to the
-# registry next to them: same registries.d file as the bootc systems
+# lib/push-image.sh signs the bootc and userland images with a sigstore key and skopeo writes the
+# signatures to the registry next to them: same registries.d file as the bootc systems
 install -D -m 644 bootc/overlay/etc/containers/registries.d/50-distro-builder.yaml \
 	/etc/containers/registries.d/50-distro-builder.yaml
 [[ -r /etc/distro-builder/sigstore/distro-builder.private ]] ||
 	echo "No sigstore key in /etc/distro-builder/sigstore (homelab vault): bootc images will not be signed" >&2
 systemctl daemon-reload
 
-systemctl enable --now build-aur.timer
+systemctl enable --now build-aur.timer build-userland.timer
 for link in /etc/systemd/system/timers.target.wants/build-{image,bootc}@*.timer; do
 	timer=${link##*/}
 	[[ -L $link && " ${timers[*]} " != *" $timer "* ]] && systemctl disable --now "$timer"

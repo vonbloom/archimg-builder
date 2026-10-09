@@ -1,0 +1,28 @@
+# Packages of the userland image (userland/Containerfile). Several per line are fine; # starts a
+# comment. Try a package in the playground box first, then add it here.
+
+# What distrobox-init installs on a box's first start (distrobox 1.8.2.5, setup_pacman; mlocate is
+# gone from Arch). The image has them, so a new box skips that setup (/.containersetupdone).
+# zsh: the user's shell. glibc-locales: every locale, the host's ca_ES.UTF-8 included
+zsh bash-completion bc curl diffutils findutils glibc glibc-locales gnupg iputils inetutils
+keyutils less lsof man-db man-pages mtr ncurses nss-mdns openssh pigz pinentry procps-ng rsync
+shadow sudo tcpdump time traceroute tree tzdata unzip util-linux util-linux-libs vte-common wget
+words xorg-xauth zip mesa vulkan-intel vulkan-radeon
+
+# Fonts (cached at build time) and the keyring of [cachyos], where brave-bin comes from
+fontconfig cachyos-keyring ttf-jetbrains-mono-nerd noto-fonts-emoji
+
+# Desktop apps, exported to the host by distrobox.ini
+brave-bin pipewire-pulse libpulse
+# Microsoft's VS Code from [aur]: the Dev Containers extension (tramit-* projects) does not work in
+# Code-OSS or VSCodium. podman is a client of the host's socket (99-remote.conf)
+visual-studio-code-bin podman git
+# adw-gtk-theme: the GTK3 theme darkman switches between light and dark on the host (shared dconf)
+thunar gvfs gvfs-smb adw-gtk-theme
+# remote-viewer: the screen of test VMs (iso/test-vm, VNC or SPICE with sound)
+virt-viewer
+gimp imagemagick
+
+# Terminal tools
+neovim btop fastfetch fzf zsh-completions
+ansible ansible-lint
