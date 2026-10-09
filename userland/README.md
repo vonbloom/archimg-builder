@@ -39,13 +39,19 @@ image" notification with the changes since the previous one.
 ## On the laptops
 
 `userland-update` (in the host images) pulls `userland:latest`, reads its `distrobox.ini`, pins it
-to the digest it pulled and recreates both boxes with it (`distrobox assemble create --replace`),
+to the digest it pulled and recreates `userland` with it (`distrobox assemble create --replace`),
 then installs the D-Bus services and removes the previous image. It does nothing when userland
-already runs that image, asks before replacing a running userland (the apps opened from it close;
+already runs that image, asks before replacing a running box (the apps opened from it close;
 `--yes` skips the question), and `--dry-run` only shows what it would do.
 `userland-update 192.168.2.50:5000/userland:<date>` goes back to an older image (the registry keeps
 four). On a new machine `deploy-userland` runs it at the first login. The host images trust the
 registry and require its signature (the generic overlay of `image/arkdep-build.d/depends`).
 
-Until each laptop's boxes are recreated this way they still come from the dotfiles' `default.ini`
-and `archlinux:latest`; pending (`docs/todo.md`): that switch, then the waybar notice.
+`playground` is left alone by an update, so the experiments in it stay (it says when it runs an
+older image than userland). `userland-update --playground` moves it to the image userland runs and
+installs again the packages added in it (explicitly installed, not in the image), with `pacman
+-Syu`; files changed in it by hand go. `--playground --dry-run` lists those packages: the
+candidates for `packages.list`.
+
+Both laptops' boxes come from the image since 2026-10-09; pending (`docs/todo.md`): the dotfiles'
+`distrobox` package goes, then the waybar notice.

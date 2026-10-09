@@ -133,10 +133,15 @@ How `arkdep-build` processes a recipe (relevant constraints):
 - **Userland boxes** (`userland-update`, `deploy-userland`): the boxes come from the userland image
   (distro-builder `userland/`). `userland-update` pulls it, reads the manifest it carries
   (`/usr/share/userland/distrobox.ini`), pins its `image=` lines to the digest it pulled and runs
-  `distrobox assemble create --replace`; it asks before replacing a running userland (its apps
-  close) unless `--yes`, copies the image's D-Bus services to `~/.local/share/dbus-1/services`
-  (plain files: the dotfiles' former links there are replaced, not written through) and removes
-  the previous image. `--dry-run` shows the manifest; an older tag as argument goes back to it.
+  `distrobox assemble create --replace --name userland`; it asks before replacing a running box
+  (its apps close) unless `--yes`, copies the image's D-Bus services to
+  `~/.local/share/dbus-1/services` (plain files: the dotfiles' former links there are replaced, not
+  written through) and removes the previous image. `--dry-run` shows what would change; an older
+  tag as argument goes back to it. `playground` keeps its image and its experiments until
+  `userland-update --playground`, which moves it to userland's image and reinstalls the packages
+  added in it (`pacman -Qqe` of the box minus `pacman -Qq` of the image, then `pacman -Syu
+  --needed`). The lock is `flock -o` on a re-exec: a lock descriptor inherited by the boxes'
+  conmon (distrobox starts them) stayed held for as long as the box ran (first version).
   `deploy-userland` (when the user manager starts: the first session after boot, SSH too) only
   runs it when there is no `userland` box: updates are the user's call. Before the image, the box
   was assembled from the dotfiles' `default.ini` and installed hundreds of packages on its first
