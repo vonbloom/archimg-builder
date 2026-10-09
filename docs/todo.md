@@ -152,6 +152,9 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       and `mango` to try mangowm, in cachyos-extra-v3) -> device (ucode, firmware, tlp.d, dracut
       GPU config, initramfs), published as `<device>-<desktop>`. Each extra combination only builds
       its device layer, and switching desktop on a laptop is a `bootc switch` (rollback included).
+      Prospect with a third kind of machine (yamaha: x86-64-v2, Cinnamon, appliance services),
+      the split of `depends/generic` into base and modules, and a phase 1 in today's recipe
+      format: `layers.md` (2026-10-09).
       Once bootc is the default, the arkdep conventions of `image/arkdep-build.d` (`depends.list`,
       `bootstrap.list`/`package.list`, `post_bootstrap`/`post_install` overlays, `extensions/`,
       `build-recipe.sh` replaying them) go: each layer gets its own manifest (packages and overlay
@@ -247,8 +250,15 @@ replace the UKI, so a UKI alone adds little.
       https://discussion.fedoraproject.org/t/165159). A kernel where the retry fails too would
       break the T480 the same way (`bootc rollback` boots the previous deployment, whose objects
       are mostly the same files).
-      - Report to linux-btrfs with the reproducer, after checking a vanilla kernel (Arch
-        `linux`) to rule out CachyOS's patches.
+      - Narrowed down (2026-10-09): the P14s (another NVMe and CPU) gives the same 10 messages, so
+        not the T480's hardware; so does Arch's own kernel in a VM (cloud image, virtio disk,
+        btrfs `compress=zstd:1`): 7.2.2, 7.2.7 and 7.2.9-arch1 fail, 6.18.55-lts, 7.0.14 and
+        7.1.11 do not. A regression of the 7.2 merge window, not CachyOS's. Reads with
+        `POSIX_FADV_RANDOM` (no readahead) give none: readahead of compressed extents. VM and
+        scripts kept in `~/.cache/verity-vm` (`vm-kernel.sh <arch version>` installs a kernel
+        from the Arch archive, boots it and runs both tests). Reported to linux-btrfs on
+        2026-10-09 (Cc fsverity and regressions, `#regzbot introduced: v7.1..v7.2.2`). Next, when
+        they answer: bisect v7.1..v7.2 in that VM if they ask for it, test their patches.
       - Avoid it on new installs: `bootc/install` mounts the root and sets `rootflags` with
         `compress=zstd:1`; `chattr +m` on `/sysroot/composefs` before the image is written, or
         no compression on the bootc root at all (costs disk: the objects are mostly binaries).
@@ -304,10 +314,11 @@ Upstream issues with a local workaround, to drop when they are fixed in a bootc 
         the fix computes the time as `$($(date +%Y%m%d-%H%M%S))`: bash runs the time as a command
         ("command not found") and the variable is empty, so every entry would be named
         `-<image>+3.conf`. Reported:
-        https://github.com/arkanelinux/arkdep/issues/53#issuecomment-6077770244. Before the P14s
-        image takes the next arkdep release, check that line (`grep systemd_boot_entry_timestamp
-        /usr/bin/arkdep`); after the first deploy with it, the entry's name on the ESP. The other
-        two points are still open.
+        https://github.com/arkanelinux/arkdep/issues/53#issuecomment-6077770244, fixed in
+        366d3af (2026-10-09, the single substitution we proposed). Neither is released yet. When
+        the P14s image takes the next arkdep release, check that it includes 366d3af (`grep
+        systemd_boot_entry_timestamp /usr/bin/arkdep`: one `$(`) and, after the first deploy with
+        it, the entry's name on the ESP. The other two points are still open.
 
 ## Storage
 

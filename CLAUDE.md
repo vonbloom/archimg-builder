@@ -22,7 +22,8 @@ systemd/  build-image@.{service,timer}, build-bootc@.{service,timer}, build-aur.
 lib/      builder.sh (ensure_builder: rebuild a podman builder image when older than 7 days),
           sign.sh (detached GPG signatures with the server key, /etc/distro-builder/gnupg),
           push-image.sh (chunkah + signed skopeo push to the registry: bootc and userland images)
-docs/     todo.md: pending improvements (boot time, storage, memory)
+docs/     todo.md: pending improvements (boot time, storage, memory); layers.md: prospect of
+          layered bootc images (base, desktop, host) for every machine, yamaha included
 ci/       check: static checks (shellcheck, Python syntax, stray files, exec bits, recipe structure),
           run by GitHub Actions on every push (.github/workflows/check.yml)
 bootc/    the recipes as bootc images (trial, the T480): Containerfile, build-recipe.sh,
