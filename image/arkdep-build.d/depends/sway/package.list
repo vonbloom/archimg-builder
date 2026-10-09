@@ -2,6 +2,9 @@ foot
 mesa
 pipewire
 pipewire-pulse
+# PipeWire asks RTKit (over D-Bus, activated on demand) for realtime scheduling of its audio
+# threads; without it they ran as normal tasks and audio dropped out under load (2026-10-09)
+rtkit
 wireplumber
 sway
 swaybg
