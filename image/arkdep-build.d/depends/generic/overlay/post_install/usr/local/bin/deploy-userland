@@ -2,7 +2,6 @@
 REPO="vonbloom/dotfiles.git"
 REPO_URL="https://github.com/$REPO"
 DOT_DIR="$HOME/.dotfiles"
-DISTROBOX_CONFIG="$HOME/.config/distrobox/default.ini"
 
 if test ! -d "$DOT_DIR"; then
     echo "Cloning dotfiles..."
@@ -14,25 +13,15 @@ fi
 
 xdg-user-dirs-update
 
-if test -f "$DISTROBOX_CONFIG"; then
-    echo "Deploying Distroboxes..."
-    # A box whose first setup was interrupted (the session ended or the machine rebooted while it
-    # installed its packages) has no exports and may be half installed, and assemble skips the
-    # boxes that exist: remove it so that assemble creates it again. distrobox-init writes
-    # /.containersetupdone once the packages are installed: a failure later (an init hook) is not
-    # detected, init hooks must not fail (the dotfiles' default.ini)
-    for box in $(podman ps -a --filter label=manager=distrobox --format '{{.Names}}'); do
-        if ! podman unshare sh -c 'm=$(podman mount "$1") || exit 0
-            test -e "$m/.containersetupdone"; r=$?; podman umount "$1" >/dev/null; exit $r' sh "$box"; then
-            echo " - $box: first setup unfinished, creating it again"
-            distrobox rm --force "$box"
-        fi
-    done
-    distrobox assemble create --file "$DISTROBOX_CONFIG" || true
-    distrobox enter -- true
+# The boxes come from the userland image (distro-builder userland/): created here the first time,
+# replaced later by userland-update when the user chooses (it stops the apps running in them). A
+# new box installs nothing on its first start (the image has distrobox's dependencies), so it can
+# no longer be left half set up by a session that ends meanwhile
+if podman container exists userland; then
+    echo "The userland box exists: userland-update replaces it with a newer image"
 else
-    # An older ~/.dotfiles without the distrobox package (it is only cloned when missing)
-    echo "No $DISTROBOX_CONFIG: update ~/.dotfiles (git pull, ./install) and run it again"
+    echo "Creating the distroboxes from the userland image..."
+    userland-update --yes || exit 1
 fi
 
 # No notification daemon outside sway (a console or SSH login): not a failure

@@ -130,14 +130,18 @@ How `arkdep-build` processes a recipe (relevant constraints):
   `image/build` mounts it at `/root/keys` and `common/extensions/post_install.sh` installs it. A
   `~/.config/containers/policy.json` would take precedence for rootless podman (none on the
   laptops, 2026-10-09).
-- **First userland setup** (`deploy-userland`, when the user manager starts: the first session
-  after boot, SSH too, not every login): it takes minutes, and ending
-  the session or rebooting meanwhile stops the box mid-setup. `distrobox assemble create` skips
-  existing boxes, so such a box never got its exports (bootc T480 rehearsal, 2026-10-08):
-  `deploy-userland` removes boxes without `/.containersetupdone` (checked with `podman unshare` +
-  `podman mount`; written once the packages are installed, before the init hooks) before
-  assembling, and the dotfiles' pre-init hook removes a leftover pacman lock. A failing init hook
-  also left the T480's userland without exports: the dotfiles' hooks must not fail.
+- **Userland boxes** (`userland-update`, `deploy-userland`): the boxes come from the userland image
+  (distro-builder `userland/`). `userland-update` pulls it, reads the manifest it carries
+  (`/usr/share/userland/distrobox.ini`), pins its `image=` lines to the digest it pulled and runs
+  `distrobox assemble create --replace`; it asks before replacing a running userland (its apps
+  close) unless `--yes`, copies the image's D-Bus services to `~/.local/share/dbus-1/services`
+  (plain files: the dotfiles' former links there are replaced, not written through) and removes
+  the previous image. `--dry-run` shows the manifest; an older tag as argument goes back to it.
+  `deploy-userland` (when the user manager starts: the first session after boot, SSH too) only
+  runs it when there is no `userland` box: updates are the user's call. Before the image, the box
+  was assembled from the dotfiles' `default.ini` and installed hundreds of packages on its first
+  start; a session that ended meanwhile left it half set up (bootc T480 rehearsal, 2026-10-08),
+  which a box from the image (nothing to install, `/.containersetupdone` in it) cannot be.
 - **Lid and suspend** (`depends/generic/.../etc/systemd/logind.conf`): the lid suspends only on
   battery (`HandleLidSwitchExternalPower=ignore`): logind counts as docked only while an external
   display is connected, so turning off the P14s' monitors on the dock (lid closed) suspended it.

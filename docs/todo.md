@@ -186,12 +186,13 @@ Still to do, in order:
       keeps Arch's default for the others), and the arkdep image gets the key from `keys/`
       (2026-10-09). To check once the P14s runs an image built with it: `podman pull
       192.168.2.50:5000/userland:latest` works, and an unsigned image there is refused.
-- [ ] **`userland-update`** in the host images (arkdep and bootc): pull `userland:latest`; if
-      the digest is new, read `distrobox.ini` and the D-Bus services from the image, put the
-      pulled digest in its `image=` lines, `distrobox assemble create --replace` (it stops Brave
-      and VS Code: run by the user, not by itself), copy the services to
-      `~/.local/share/dbus-1/services`. `deploy-userland` uses it for the first setup, which no
-      longer needs the dotfiles cloned first.
+- [x] **`userland-update`** in the host images (generic overlay, 2026-10-09): pulls
+      `userland:latest`, and if userland runs another image reads `distrobox.ini` and the D-Bus
+      services from it, pins its `image=` lines to the pulled digest, `distrobox assemble create
+      --replace` (asks first if userland runs: its apps close), installs the services, removes the
+      previous image. `deploy-userland` runs it when there is no userland box. Dry run on the
+      P14s from the checkout: pulled the real image in 38 s. The manifest gained the exports made
+      by hand on the P14s (`gimp`, `magick`, `unzip`).
 - [ ] **Try it on the T480**, then the P14s. The dotfiles lose the `distrobox` package
       (`default.ini`, `pre_init_distrobox_assemble.sh`, the copy of the `[aur]` key, the D-Bus
       services) and their docs (dotfiles `CLAUDE.md`, "Host vs container").

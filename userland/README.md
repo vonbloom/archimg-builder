@@ -38,7 +38,14 @@ image" notification with the changes since the previous one.
 
 ## On the laptops
 
-Not yet: the laptops still create the boxes from the dotfiles' `default.ini` and `archlinux:latest`.
-The host images trust the registry and require its signature (the generic overlay of
-`image/arkdep-build.d/depends`). Pending (`docs/todo.md`): a host command that pulls the image,
-reads its `distrobox.ini` and recreates the boxes, and the waybar notice.
+`userland-update` (in the host images) pulls `userland:latest`, reads its `distrobox.ini`, pins it
+to the digest it pulled and recreates both boxes with it (`distrobox assemble create --replace`),
+then installs the D-Bus services and removes the previous image. It does nothing when userland
+already runs that image, asks before replacing a running userland (the apps opened from it close;
+`--yes` skips the question), and `--dry-run` only shows what it would do.
+`userland-update 192.168.2.50:5000/userland:<date>` goes back to an older image (the registry keeps
+four). On a new machine `deploy-userland` runs it at the first login. The host images trust the
+registry and require its signature (the generic overlay of `image/arkdep-build.d/depends`).
+
+Until each laptop's boxes are recreated this way they still come from the dotfiles' `default.ini`
+and `archlinux:latest`; pending (`docs/todo.md`): that switch, then the waybar notice.

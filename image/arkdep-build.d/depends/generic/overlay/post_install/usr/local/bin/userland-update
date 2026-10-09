@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Usage: userland-update [--yes] [--dry-run] [IMAGE]
+# Create or replace the userland and playground distroboxes from the userland image that
+# distro-builder builds (userland/): pull it, read the box manifest it carries
+# (/usr/share/userland/distrobox.ini) and run distrobox assemble with it, pinned to the digest just
+# pulled, so that packages, exports and settings all come from the same image. The boxes are
+# replaced, not upgraded: whatever was installed in them by hand goes (try packages in playground,
+# then add them to distro-builder's userland/packages.list). Also installs the D-Bus services of the
+# image (gvfs and xfconf, started in userland) in ~/.local/share/dbus-1/services.
+#   --yes      replace a running userland box without asking (the apps opened from it close)
+#   --dry-run  pull, show the manifest and what would change, change nothing
+#   IMAGE      another tag or digest, e.g. 192.168.2.50:5000/userland:2026-10-09 to go back to it
+
+set -euo pipefail
+
+IMAGE=192.168.2.50:5000/userland:latest
+yes=0
+dry=0
+while (($#)); do
+	case $1 in
+		--yes) yes=1 ;;
+		--dry-run) dry=1 ;;
+		-*) sed -n '2,13s/^# \?//p' "$0" >&2; exit 2 ;;
+		*) IMAGE=$1 ;;
+	esac
+	shift
+done
+
+# One run at a time (deploy-userland runs it at the first login after boot)
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/userland-update.lock"
+flock -n 9 || { echo "userland-update is already running" >&2; exit 1; }
+
+echo "Pulling $IMAGE..."
+podman pull -q "$IMAGE" >/dev/null
+# repository@sha256:...: the boxes are created from exactly this image, not from a tag that may
+# move during the update
+pinned=$(podman image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$IMAGE" | head -n1)
+[[ -n $pinned ]] || { echo "No digest for $IMAGE" >&2; exit 1; }
+new_id=$(podman image inspect --format '{{.Id}}' "$pinned")
+version=$(podman image inspect --format '{{index .Labels "org.opencontainers.image.version"}}' "$pinned")
+cur_id=$(podman container inspect --format '{{.Image}}' userland 2>/dev/null || true)
+
+if [[ $cur_id == "$new_id" ]]; then
+	echo "userland already runs $pinned (${version:-no version})"
+	exit 0
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+run_image() { podman run --rm --network none --entrypoint "$1" "$pinned" "${@:2}"; }
+run_image cat /usr/share/userland/distrobox.ini | sed "s|^image=.*|image=$pinned|" >"$work/distrobox.ini"
+mkdir "$work/dbus"
+run_image tar -C /usr/share/userland/dbus-1/services -cf - . | tar -C "$work/dbus" -xf - --no-same-owner
+
+echo "New image: $pinned (${version:-no version})"
+echo "Boxes: $(grep -o '^\[[^]]*\]' "$work/distrobox.ini" | tr -d '[]' | paste -sd' ')"
+if ((dry)); then
+	echo "--- distrobox.ini"
+	cat "$work/distrobox.ini"
+	echo "--- D-Bus services:" "$work"/dbus/*.service | sed "s|$work/dbus/||g"
+	exit 0
+fi
+
+if [[ $(podman container inspect --format '{{.State.Running}}' userland 2>/dev/null) == true ]] && ((!yes)); then
+	if [[ ! -t 0 ]]; then
+		echo "userland is running: run again with --yes to replace it" >&2
+		exit 1
+	fi
+	read -rp "userland is running: the apps opened from it (Brave, VS Code...) will close. Replace it? [y/N] " answer
+	[[ $answer == [yYsS]* ]] || exit 1
+fi
+
+# Replaces each box (distrobox rm also removes its exports) and exports the apps and commands the
+# manifest lists
+distrobox assemble create --replace --file "$work/distrobox.ini"
+
+# Plain files, also over the dotfiles' former links (not written through them)
+services=$HOME/.local/share/dbus-1/services
+mkdir -p "$services"
+changed=0
+for f in "$work"/dbus/*.service; do
+	dest=$services/${f##*/}
+	cmp -s "$f" "$dest" && [[ ! -L $dest ]] && continue
+	rm -f "$dest"
+	install -m 644 "$f" "$dest"
+	changed=1
+done
+((changed)) && busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || true
+
+# Images of the boxes no container uses any more (the previous userland image)
+repo=${pinned%@*}
+podman images --noheading --filter "reference=$repo" --format '{{.Id}}' | sort -u |
+	while read -r id; do
+		id=${id#sha256:}
+		[[ $new_id == "$id"* ]] && continue
+		podman rmi "$id" >/dev/null 2>&1 || true
+	done
+
+echo "userland and playground now run $pinned (${version:-no version})"

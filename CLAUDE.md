@@ -56,9 +56,11 @@ working there. Keep them in sync when changing behaviour, in the file of the com
   (`/arkdep/deployments/<image>/rootfs`), `/etc` and `/var` are separate subvolumes per deployment.
   `deploy_keep=2`. Packages are not installed on the host at runtime: change a recipe and rebuild.
 - **Userland**: everything interactive (VS Code, Brave, neovim, compilers) lives in the `userland`
-  distrobox (Arch). Defined in `~/.config/distrobox/default.ini`, from the dotfiles repo
-  `vonbloom/dotfiles` (stow, `~/.dotfiles`). Provisioned at first login by
-  `/usr/local/bin/deploy-userland` (user unit `deploy-userland.service`).
+  distrobox (Arch), created from the userland image built here (`userland/`, with the box
+  manifest inside) by `userland-update` (host image, generic overlay), which `deploy-userland`
+  (user unit `deploy-userland.service`) runs at the first login when the box is missing. Until
+  the laptops' boxes are recreated from it (`docs/todo.md`), they come from the dotfiles'
+  `~/.config/distrobox/default.ini` (`vonbloom/dotfiles`, stow, `~/.dotfiles`).
 - **Host config persistence**: `/arkdep/config` `migrate_files` copies listed paths from the running
   system into each new deployment (`cp -rp`, merged over the image). It includes
   `etc/passwd|shadow|group`, `etc/ssh`, `etc/systemd/network` (WireGuard `wg0`), `var/lib/iwd`, etc.
