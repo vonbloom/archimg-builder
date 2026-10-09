@@ -159,6 +159,18 @@ layer, a one-off. Still to see on a regular weekly build: which layers change on
       today moves to the base layer, e.g. the registry's client config (`etc/containers`, moved
       there from `bootc/overlay` on 2026-10-09) and its key (`post_install.sh` for arkdep,
       `build-recipe.sh` for bootc: one `install` in the base layer).
+      - The userland image stays apart from these layers (decided 2026-10-09). The host image takes
+        what needs root, hardware, the boot or the session (drivers, network, virtualization,
+        the compositor, portals, the keyring) plus what the host's own shells and scripts use;
+        the userland image takes the user's apps and tools, which change often. Apart, an app
+        update is a box replaced in seconds, not a build of the system and a reboot; the `[aur]`
+        packages' install scripts run as root in the box, not on the host; a broken userland
+        still boots and rolls back alone; both laptops share it whatever the host runs (arkdep,
+        bootc); and playground tries packages in the real environment. Moving a package is a
+        line from one `packages.list` to the other. Duplicates are on purpose (zsh-completions,
+        fzf, git, man-db...: the host's shells and the boxes' each need theirs).
+      - Borderline: Thunar with gvfs and xfconf, the one app that needs the D-Bus services
+        forwarded to the box (`userland/dbus-1/`). In the desktop layer that workaround would go.
 - [ ] Rebuild only what changed: drop `--no-cache` and let podman reuse layers, with a fingerprint
       of the package versions available for each layer (`pacman -Sy` + `pacman -Sp`, ~20 s) as a
       `--build-arg` of its install step, so a new package version invalidates that layer and the
@@ -193,7 +205,12 @@ Still to do, in order:
       previous image. `deploy-userland` runs it when there is no userland box. Dry run on the
       P14s from the checkout: pulled the real image in 38 s. The manifest gained the exports made
       by hand on the P14s (`gimp`, `magick`, `unzip`).
-- [ ] **Try it on the T480**, then the P14s. The dotfiles lose the `distrobox` package
+- [ ] **Switch the laptops' boxes to the image**: the P14s on 2026-10-09 (`userland-update` from the
+      checkout, 38 s with the image already pulled: both boxes, 14 exports, D-Bus services;
+      zsh, locale, VS Code, Ansible, ssh and the remote podman work; the old userland's 8.9 GB
+      writable layer gone); the T480 the same day (its t480-2026-10-09 image, script from the
+      checkout: 126 s over Wi-Fi, then `--playground`). Then the dotfiles lose the `distrobox`
+      package
       (`default.ini`, `pre_init_distrobox_assemble.sh`, the copy of the `[aur]` key, the D-Bus
       services) and their docs (dotfiles `CLAUDE.md`, "Host vs container").
 - [ ] **waybar notice**: a user timer pulls the new image (staged) and the indicator shows it,
@@ -302,9 +319,9 @@ Upstream issues with a local workaround, to drop when they are fixed in a bootc 
       (container layers, ISOs, browser cache and downloads compress little), with `/home` 25 %
       full (356 GB free). Files rewritten from now on get compressed anyway. If one large,
       compressible directory without reflinks ever matters, defragment only that one.
-- [ ] Stopped podman containers kept by `podman-cleanup`: decide on the old dev containers
-      (`beautiful_boyd`: tramit-api-next, 6 months; `hopeful_dhawan`: tramit-csv, 2 months) and
-      the `playground` distrobox (`podman rm`, `distrobox rm`).
+- [x] Stopped podman containers kept by `podman-cleanup`: the dev containers stay (VS Code
+      reopens them; 17.6 GB of writable layers on the P14s, 2026-10-09), and `playground` comes
+      from the userland image now.
 
 ## Memory and scheduling
 
