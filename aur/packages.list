@@ -8,3 +8,6 @@ devpod-cli-bin
 # corosync-qnetd for the Proxmox cluster's QDevice on yamaha (192.168.2.39, Arch): pulls in
 # corosync, kronosnet and libcgroup (reviewed 2026-10-09: upstream sources with checksums)
 corosync-qdevice
+# squeezelite for yamaha's audio (Lyrion player): built against the current ffmpeg (reviewed
+# 2026-10-09: upstream git at a pinned commit)
+squeezelite
