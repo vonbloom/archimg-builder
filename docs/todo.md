@@ -205,14 +205,13 @@ Still to do, in order:
       previous image. `deploy-userland` runs it when there is no userland box. Dry run on the
       P14s from the checkout: pulled the real image in 38 s. The manifest gained the exports made
       by hand on the P14s (`gimp`, `magick`, `unzip`).
-- [ ] **Switch the laptops' boxes to the image**: the P14s on 2026-10-09 (`userland-update` from the
+- [x] **Switch the laptops' boxes to the image**: the P14s on 2026-10-09 (`userland-update` from the
       checkout, 38 s with the image already pulled: both boxes, 14 exports, D-Bus services;
       zsh, locale, VS Code, Ansible, ssh and the remote podman work; the old userland's 8.9 GB
       writable layer gone); the T480 the same day (its t480-2026-10-09 image, script from the
-      checkout: 126 s over Wi-Fi, then `--playground`). Then the dotfiles lose the `distrobox`
-      package
-      (`default.ini`, `pre_init_distrobox_assemble.sh`, the copy of the `[aur]` key, the D-Bus
-      services) and their docs (dotfiles `CLAUDE.md`, "Host vs container").
+      checkout: 126 s over Wi-Fi, then `--playground`). The dotfiles' `distrobox` package went the
+      same day (unstowed on both laptops first: `default.ini`, the pre-init hook, the copy of the
+      `[aur]` key, the D-Bus services).
 - [ ] **waybar notice**: a user timer pulls the new image (staged) and the indicator shows it,
       like `arkdep-update-status` does for the system.
 

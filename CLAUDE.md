@@ -58,9 +58,9 @@ working there. Keep them in sync when changing behaviour, in the file of the com
 - **Userland**: everything interactive (VS Code, Brave, neovim, compilers) lives in the `userland`
   distrobox (Arch), created from the userland image built here (`userland/`, with the box
   manifest inside) by `userland-update` (host image, generic overlay), which `deploy-userland`
-  (user unit `deploy-userland.service`) runs at the first login when the box is missing. Until
-  the laptops' boxes are recreated from it (`docs/todo.md`), they come from the dotfiles'
-  `~/.config/distrobox/default.ini` (`vonbloom/dotfiles`, stow, `~/.dotfiles`).
+  (user unit `deploy-userland.service`) runs at the first login when the box is missing. The user
+  configuration is the dotfiles repo `vonbloom/dotfiles` (stow, `~/.dotfiles`), which defined the
+  boxes until 2026-10-09 (`default.ini`).
 - **Host config persistence**: `/arkdep/config` `migrate_files` copies listed paths from the running
   system into each new deployment (`cp -rp`, merged over the image). It includes
   `etc/passwd|shadow|group`, `etc/ssh`, `etc/systemd/network` (WireGuard `wg0`), `var/lib/iwd`, etc.

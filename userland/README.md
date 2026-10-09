@@ -53,5 +53,5 @@ installs again the packages added in it (explicitly installed, not in the image)
 -Syu`; files changed in it by hand go. `--playground --dry-run` lists those packages: the
 candidates for `packages.list`.
 
-Both laptops' boxes come from the image since 2026-10-09; pending (`docs/todo.md`): the dotfiles'
-`distrobox` package goes, then the waybar notice.
+Both laptops' boxes come from the image since 2026-10-09 (before, the dotfiles' `default.ini`
+assembled them from `archlinux:latest`). Pending (`docs/todo.md`): the waybar notice.
