@@ -257,9 +257,20 @@ replace the UKI, so a UKI alone adds little.
         `POSIX_FADV_RANDOM` (no readahead) give none: readahead of compressed extents. VM and
         scripts kept in `~/.cache/verity-vm` (`vm-kernel.sh <arch version>` installs a kernel
         from the Arch archive, boots it and runs both tests). Reported to linux-btrfs on
-        2026-10-09 (Cc fsverity and regressions, `#regzbot introduced: v7.1..v7.2.2`). Next, when
-        they answer: bisect v7.1..v7.2 in that VM if they ask for it, test their patches.
-      - Avoid it on new installs: `bootc/install` mounts the root and sets `rootflags` with
+        2026-10-09 (Cc fsverity and regressions, `#regzbot introduced: v7.1..v7.2.2`).
+      - Fix (2026-10-10): Qu Wenruo's "btrfs: fix the fsverity callback where unexpected range is
+        verified" (`fsverity_verify_folio()` -> `fsverity_verify_blocks()` on the range read).
+        7.2 enabled large data folios, and `btrfs_verify_folio()` verified the whole folio when a
+        read covered only part of it (a 128 KiB compressed extent), i.e. blocks not read yet; the
+        bug is as old as btrfs fs-verity but needed block size < page size before. Tested in the
+        VM on 7.2.9 (`build.sh`: Arch config reduced to the VM's modules, built in, booted with
+        `test-kernel.sh <bzImage>`): vanilla 10 messages on the reproducers and 20/10/11/30 on
+        `verity-tree.sh` (a copy of /usr, 34969 files with verity: cat, 4 parallel readers, mmap,
+        diff), patched none; data identical in both. The counts are lower bounds:
+        `fsverity_msg()` is rate limited (10 per 5 s), hence always "10". Next: Tested-by on the
+        patch; wait for the fix in a 7.2.y stable release, then in CachyOS's kernel, and check
+        the T480's log for `FILE CORRUPTED` after that update.
+      - Only if the fix stalls, avoid it on new installs: `bootc/install` mounts the root and sets `rootflags` with
         `compress=zstd:1`; `chattr +m` on `/sysroot/composefs` before the image is written, or
         no compression on the bootc root at all (costs disk: the objects are mostly binaries).
         Existing objects stay compressed (verity files cannot be rewritten in place).
