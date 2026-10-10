@@ -267,13 +267,17 @@ replace the UKI, so a UKI alone adds little.
         `test-kernel.sh <bzImage>`): vanilla 10 messages on the reproducers and 20/10/11/30 on
         `verity-tree.sh` (a copy of /usr, 34969 files with verity: cat, 4 parallel readers, mmap,
         diff), patched none; data identical in both. The counts are lower bounds:
-        `fsverity_msg()` is rate limited (10 per 5 s), hence always "10". Next: Tested-by on the
-        patch; wait for the fix in a 7.2.y stable release, then in CachyOS's kernel, and check
-        the T480's log for `FILE CORRUPTED` after that update.
-      - Only if the fix stalls, avoid it on new installs: `bootc/install` mounts the root and sets `rootflags` with
-        `compress=zstd:1`; `chattr +m` on `/sysroot/composefs` before the image is written, or
-        no compression on the bootc root at all (costs disk: the objects are mostly binaries).
-        Existing objects stay compressed (verity files cannot be rewritten in place).
+        `fsverity_msg()` is rate limited (10 per 5 s), hence always "10". Tested-by sent the same
+        day; Qu fixes the commit message when merging (it claimed read errors: reads never fail,
+        the failed I/O has already filled the page cache, so the retry finds the blocks
+        uptodate). Next: the fix in mainline, then in a 7.2.y stable release (it has `Fixes:` but
+        no `Cc: stable`: if mainline gets it and 7.2.y does not, ask on the thread), then in
+        CachyOS's kernel; after that update, check the T480's log for `FILE CORRUPTED`.
+      - Only if the fix stalls, avoid it on new installs: `bootc/install` mounts the root and
+        sets `rootflags` with `compress=zstd:1`; `chattr +m` on `/sysroot/composefs` before the
+        image is written, or no compression on the bootc root at all (costs disk: the objects
+        are mostly binaries). Existing objects stay compressed (verity files cannot be rewritten
+        in place).
 - [ ] **Sealed images, together with LUKS + TPM2.** Sealing protects the system, not the data: a
       stolen laptop's `/var/home` is readable without disk encryption. The pair that pays off is
       a TPM2-bound LUKS key released only when our signed UKI boots (`systemd-cryptenroll`).
